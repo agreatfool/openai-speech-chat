@@ -1,0 +1,5 @@
+apiKey: 
+model: gpt-3.5-turbo-16k
+temperature: 0.8
+useProxy: true
+proxyUrl: http://127.0.0.1:6152
