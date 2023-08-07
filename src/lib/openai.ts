@@ -4,10 +4,49 @@ import { AxiosError, AxiosRequestConfig, AxiosResponse, isAxiosError } from 'axi
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Debugger } from 'debug';
 import { Logger, LoggerType } from './logger';
+import { IncomingMessage } from 'http';
+
+export const handleChatRes = (
+  res: AxiosResponse<CreateChatCompletionResponse>,
+  handle: (chunk: string | undefined) => void,
+  end?: () => void,
+) => {
+  return new Promise((resolve) => {
+    const stream = res.data as unknown as IncomingMessage;
+
+    stream.on('data', (chunk: Buffer) => {
+      const payloads = chunk.toString().split('\n\n');
+      for (const payload of payloads) {
+        if (payload.includes('[DONE]')) {
+          // end message, ignore it
+          return;
+        }
+        if (payload.startsWith('data:')) {
+          try {
+            const data = JSON.parse(payload.replace('data: ', ''));
+            const chunk: undefined | string = data.choices[0]?.delta?.content;
+            if (chunk) {
+              handle(chunk);
+            }
+          } catch (error) {
+            Logger.buildLogger(LoggerType.openai)('Error when JSON.parse "%s". \nerror:\n%O', payload, error);
+          }
+        }
+      }
+    });
+
+    stream.on('end', () => {
+      if (end) {
+        end();
+      }
+      resolve(undefined);
+    });
+  });
+};
 
 export class OpenAI {
   private static _instance: OpenAI;
-  public static instance() {
+  public static get instance() {
     if (!OpenAI._instance) {
       OpenAI._instance = new OpenAI();
     }
@@ -19,16 +58,15 @@ export class OpenAI {
   private logger: Debugger;
 
   constructor() {
-    this.config = Config.instance().data;
-    this.logger = Logger.buildLogger(LoggerType.error);
+    this.config = Config.instance.data;
+    this.logger = Logger.buildLogger(LoggerType.openai);
     const configuration = new Configuration({
       apiKey: this.config.apiKey,
     });
     this.openai = new OpenAIApi(configuration);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async chat(question: string): Promise<AxiosResponse<CreateChatCompletionResponse, any>> {
+  public async chat(question: string): Promise<AxiosResponse<CreateChatCompletionResponse>> {
     const req: CreateChatCompletionRequest = {
       model: this.config.model,
       messages: [{ role: 'user', content: question }],
@@ -46,14 +84,9 @@ export class OpenAI {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       return this.openai.createChatCompletion(req, axiosConfig);
-      // const res = await this.openai.createChatCompletion(req, axiosConfig);
-      // return res.data;
     } catch (error) {
       let status = -1;
       let message = 'failed';
-
-      // console.log(error);
-      // console.log(isAxiosError(error));
 
       if (isAxiosError(error)) {
         const err: AxiosError<string> = error;
@@ -67,13 +100,8 @@ export class OpenAI {
         this.logger('OpenAI request failed, status: -1, data: %s', message);
       }
 
-      // return {
-      //   id: 'chatcmpl-7kWeu25HxWK10Tag5hmb4F5e6RsTA',
-      //   object: 'chat.completion',
-      //   created: -1,
-      //   model: this.config.model,
-      //   choices: [{ index: 0, message: { role: 'user', content: message } }],
-      // };
+      // we will still throw the error after logging
+      throw error;
     }
   }
 }

@@ -3,8 +3,9 @@ import * as debug from 'debug';
 const LOGGER_PREFIX = 'openai-speech-chat:';
 
 export enum LoggerType {
+  controller = 'controller',
   openai = 'openai',
-  error = 'error',
+  speech = 'speech',
 }
 
 export class Logger {

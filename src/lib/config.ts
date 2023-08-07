@@ -8,11 +8,14 @@ export interface ConfigData {
   temperature: number;
   useProxy: boolean;
   proxyUrl: string;
+  maxHistory: number;
+  lang: { [lang: string]: string }; // { zh: "Meijia" }
+  translate2: string;
 }
 
 export class Config {
   private static _instance: Config;
-  public static instance() {
+  public static get instance() {
     if (!Config._instance) {
       Config._instance = new Config();
     }

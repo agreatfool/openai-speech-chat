@@ -16,7 +16,7 @@
     "start": "node ./dist/index.js",
     "lint": "./node_modules/.bin/eslint --config .eslintrc.js '{src,apps,libs,test}/**/*.{js,ts}'",
     "lint:fix": "npm run lint -- --fix",
-    "format": "./node_modules/.bin/prettier --config .prettierrc 'src/**/*.{js,ts}' 'test/**/*.{js,ts}' --write"
+    "format": "./node_modules/.bin/prettier --config .prettierrc 'src/**/*.{js,ts}' --write"
   },
   "repository": {
     "type": "git",
@@ -31,14 +31,18 @@
   "dependencies": {
     "@inquirer/prompts": "^3.0.2",
     "axios": "^1.4.0",
+    "dayjs": "^1.11.9",
     "debug": "^4.3.4",
     "https-proxy-agent": "^7.0.1",
+    "langdetect": "^0.2.1",
     "openai": "^3.3.0",
+    "shelljs": "^0.8.5",
     "yaml": "^2.3.1"
   },
   "devDependencies": {
     "@types/debug": "^4.1.8",
     "@types/node": "^20.4.8",
+    "@types/shelljs": "^0.8.12",
     "@typescript-eslint/eslint-plugin": "^6.2.1",
     "@typescript-eslint/parser": "^6.2.1",
     "eslint": "^8.46.0",
