@@ -17,6 +17,7 @@ export interface Chat {
 export enum ChatQuestionPattern {
   ChatText = 'cx',
   ChatTranslation = 'ct',
+  ChatTranslationAndAnswer = 'ca',
   ChatReplay = 'cr',
   ChatSave = 'cs',
 }
@@ -71,6 +72,10 @@ export class Controller {
         this.pattern = ChatQuestionPattern.ChatTranslation;
         this.logger('Swtich pattern to "ChatTranslation" ...');
         return this.chat();
+      case ChatQuestionPattern.ChatTranslationAndAnswer:
+        this.pattern = ChatQuestionPattern.ChatTranslationAndAnswer;
+        this.logger('Swtich pattern to "ChatTranslationAndAnswer" ...');
+        return this.chat();
       default:
         // do nothing
         break;
@@ -82,21 +87,31 @@ export class Controller {
         this.saveChatInMemory(chat1);
         this.logger('Chat saved ...');
         return this.chat();
-      case ChatQuestionPattern.ChatTranslation:
-        const chat2 = await this.chatTranslation(question);
+      case ChatQuestionPattern.ChatTranslationAndAnswer:
+        const chat2 = await this.chatTranslationAndAnswer(question);
         this.saveChatInMemory(chat2);
         this.logger('Chat saved ...');
         return this.chat();
-      default:
-        const chat3 = await this.chatText(question);
+      case ChatQuestionPattern.ChatTranslation:
+        const chat3 = await this.chatTranslation(question);
         this.saveChatInMemory(chat3);
+        this.logger('Chat saved ...');
+        return this.chat();
+      default:
+        const chat4 = await this.chatText(question);
+        this.saveChatInMemory(chat4);
         this.logger('Chat saved ...');
         return this.chat();
     }
   }
 
   private async chatTranslation(question: string) {
-    const translationQuestion = `Please translate "${question}" to ${this.config.translate2}`;
+    const translationQuestion = this.makeTranslationQuestion(question);
+    return this.chatText(translationQuestion);
+  }
+
+  private async chatTranslationAndAnswer(question: string) {
+    const translationQuestion = this.makeTranslationQuestion(question);
     const chat = await this.chatText(translationQuestion);
     this.saveChatInMemory(chat);
     return this.chatText(chat.answer);
@@ -152,12 +167,17 @@ export class Controller {
     return this.chat();
   }
 
+  private makeTranslationQuestion(question: string) {
+    return `Please translate "${question}" to ${this.config.translate2}`;
+  }
+
   private genChatHint() {
     let hint = '';
 
     hint += 'Input the chat text.\n';
     hint += 'Input "cx" to switch to text chat mode.\n';
-    hint += 'Input "ct" to switch to target language chat mode.\n';
+    hint += 'Input "ct" to switch to target language translate mode.\n';
+    hint += 'Input "ca" to switch to target language chat mode.\n';
     hint += 'Input "cr" to replay last chat answer in speech.\n';
     hint += 'Input "cs" to save chat history to disk.\n';
     hint += 'Chat:';

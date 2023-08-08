@@ -1,7 +1,7 @@
 {
   "name": "@agreatfool/openai-speech-chat",
-  "version": "0.1.0",
-  "description": "",
+  "version": "1.0.0",
+  "description": "A tool could let you chat with ChatGPT in CLI, and make language learning easily",
   "engines": {
     "node": ">=18.16"
   },
@@ -22,6 +22,13 @@
     "type": "git",
     "url": "git+https://github.com/agreatfool/openai-speech-chat.git"
   },
+  "keywords": [
+    "ChatGPT",
+    "OpenAI",
+    "Translation",
+    "OSX",
+    "Speech"
+  ],
   "author": "Jonathan Dai",
   "license": "MIT",
   "bugs": {
