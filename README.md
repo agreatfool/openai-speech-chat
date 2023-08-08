@@ -11,6 +11,8 @@ The main purpose of this project are:
 
 ## Config
 
+Rename `config.yaml.example` to `config.yaml`, and edit it.
+
 ```yaml
 apiKey: # put your chatgpt apikey here
 model: gpt-3.5-turbo-16k # see https://platform.openai.com/docs/models
@@ -37,7 +39,7 @@ $ npm install && npm run build
 
 ### Usage
 
-Execute `openai-speech-chat` directly.
+Execute `openai-speech-chat` directly after installing.
 
 ```
 $ openai-speech-chat
@@ -52,11 +54,11 @@ Chat:
 
 Some commands could be used:
 
-- type `cx` in the Chat input, to switch text chat mode (default mode)
+- type `cx` in the Chat input, to switch to text chat mode (default mode)
   - talk with ChatGPT with text input
-- type `ct` in the Chat input, to switch translation mode
+- type `ct` in the Chat input, to switch to translation mode
   - input anything in the Chat input, it would be translated into target language (settings in the config file)
-- type `ca` in the Chat input, to switch translation and chat mode
+- type `ca` in the Chat input, to switch to translation and chat mode
   - input anything in the Chat input, it would be translated into target language and this translated input would be sent to ChatGPT to chat
 - type `cr` in the Chat input, would call `say` command to Text-to-Speech the last answer from ChatGPT
 - type `cs` in the Chat input, would save all the history chats data into `~/Downloads/openai-speech-chat.chat-history.${dayjs().unix()}.json`
@@ -78,11 +80,11 @@ As google cloud API are all paid to use, I will not use them.
 Now switch to MAC OSX "say" command.
 ```
 
-website: https://cloud.google.com/text-to-speech/docs
-free trial plan: https://cloud.google.com/free/docs/free-cloud-features
-billing: https://cloud.google.com/billing/docs/how-to/modify-project
-limit: https://cloud.google.com/text-to-speech/quotas
-tutorial: https://cloud.google.com/text-to-speech/docs/create-audio-text-client-libraries
+- website: https://cloud.google.com/text-to-speech/docs
+- free trial plan: https://cloud.google.com/free/docs/free-cloud-features
+- billing: https://cloud.google.com/billing/docs/how-to/modify-project
+- limit: https://cloud.google.com/text-to-speech/quotas
+- tutorial: https://cloud.google.com/text-to-speech/docs/create-audio-text-client-libraries
 
 Basic account
 
