@@ -174,7 +174,7 @@ export class Controller {
   private genChatHint() {
     let hint = '';
 
-    hint += 'Input the chat text.\n';
+    hint += `Input the chat text (mode: ${this.pattern}).\n`;
     hint += 'Input "cx" to switch to text chat mode.\n';
     hint += 'Input "ct" to switch to target language translate mode.\n';
     hint += 'Input "ca" to switch to target language chat mode.\n';
