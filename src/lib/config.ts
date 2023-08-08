@@ -5,12 +5,15 @@ import { parse } from 'yaml';
 export interface ConfigData {
   apiKey: string; // see: https://platform.openai.com/account/api-keys
   model: string; // see: https://platform.openai.com/docs/models
-  temperature: number;
+  modelTokenLimit: number;
+  modelTokenThrottle: number; // 0.8 means "80% of modelTokenLimit"
+  temperature: number; // 0.8
   useProxy: boolean;
-  proxyUrl: string;
+  proxyUrl: string; // http://127.0.0.1:6152
   maxHistory: number;
   lang: { [lang: string]: string }; // { zh: "Meijia" }
-  translate2: string;
+  translate2: string; // japanese
+  logPrompt: boolean;
 }
 
 export class Config {

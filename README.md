@@ -16,6 +16,8 @@ Rename `config.yaml.example` to `config.yaml`, and edit it.
 ```yaml
 apiKey: # put your chatgpt apikey here
 model: gpt-3.5-turbo-16k # see https://platform.openai.com/docs/models
+modelTokenLimit: 16384 # the OpenAI official token size limit for the model above
+modelTokenThrottle: 0.8 # "modelTokenLimit * modelTokenThrottle" would be the limit of total histories brought together to make a chat request
 temperature: 0.8 # What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
 useProxy: true # whether call chatgpt API over proxy
 proxyUrl: http://127.0.0.1:6152 # proxy setting
@@ -25,6 +27,7 @@ lang: # say command voice config, format: "lang: voice", all voice options `say 
   en: Samantha
   ja: Kyoko
 translate2: japanese # the translation target language, in translation mode, no matter what you input, it would be sent to chatgpt to be translated into this lanuage
+logPrompt: false # whether need to log the prompt sent to OpenAI, for debuging purpose
 ```
 
 ## Install & Usage
@@ -43,7 +46,7 @@ Execute `openai-speech-chat` directly after installing.
 
 ```
 $ openai-speech-chat
-? Input the chat text.
+? Input the chat text (mode: cx).
 Input "cx" to switch to text chat mode.
 Input "ct" to switch to target language translate mode.
 Input "ca" to switch to target language chat mode.

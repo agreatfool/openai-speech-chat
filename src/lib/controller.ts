@@ -5,13 +5,18 @@ import * as dayjs from 'dayjs';
 import { input } from '@inquirer/prompts';
 import { Debugger } from 'debug';
 import { Logger, LoggerType } from './logger';
-import { OpenAI, handleChatRes } from './openai';
+import { OpenAI, gpt3TokenAmountCalc, handleChatRes } from './openai';
 import { Config, ConfigData } from './config';
 import { Speech } from './speech';
+import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum } from 'openai';
 
 export interface Chat {
   question: string;
   answer: string;
+}
+
+export interface ChatHistory extends Chat {
+  type: ChatHistoryType;
 }
 
 export enum ChatQuestionPattern {
@@ -20,6 +25,11 @@ export enum ChatQuestionPattern {
   ChatTranslationAndAnswer = 'ca',
   ChatReplay = 'cr',
   ChatSave = 'cs',
+}
+
+export enum ChatHistoryType {
+  Chat = 'Chat',
+  Translation = 'Translation',
 }
 
 export class Controller {
@@ -33,18 +43,20 @@ export class Controller {
 
   private config: ConfigData;
   private logger: Debugger;
-  private history: Chat[];
+  private histories: ChatHistory[];
   private openai: OpenAI;
   private speech: Speech;
   private pattern: ChatQuestionPattern;
+  private tokenLimit: number;
 
   constructor() {
     this.config = Config.instance.data;
     this.logger = Logger.buildLogger(LoggerType.controller);
-    this.history = [];
+    this.histories = [];
     this.openai = OpenAI.instance;
     this.speech = Speech.instance;
     this.pattern = ChatQuestionPattern.ChatText;
+    this.tokenLimit = this.config.modelTokenLimit * this.config.modelTokenThrottle;
   }
 
   public async start() {
@@ -57,10 +69,12 @@ export class Controller {
       return this.chat();
     }
     if (question === ChatQuestionPattern.ChatReplay) {
-      return this.chatReplay();
+      await this.chatReplay();
+      return this.chat();
     }
     if (question === ChatQuestionPattern.ChatSave) {
-      return this.saveChatToFile();
+      await this.saveChatToFile();
+      return this.chat();
     }
 
     switch (question) {
@@ -75,6 +89,9 @@ export class Controller {
       case ChatQuestionPattern.ChatTranslationAndAnswer:
         this.pattern = ChatQuestionPattern.ChatTranslationAndAnswer;
         this.logger('Swtich pattern to "ChatTranslationAndAnswer" ...');
+        this.logger('Swtich to human being like chat mode, remove old histories ...');
+        if (this.histories.length > 0) await this.saveChatToFile();
+        this.histories = [];
         return this.chat();
       default:
         // do nothing
@@ -84,22 +101,22 @@ export class Controller {
     switch (this.pattern) {
       case ChatQuestionPattern.ChatText:
         const chat1 = await this.chatText(question);
-        this.saveChatInMemory(chat1);
+        this.saveChatInMemory(chat1, ChatHistoryType.Chat);
         this.logger('Chat saved ...');
         return this.chat();
       case ChatQuestionPattern.ChatTranslationAndAnswer:
         const chat2 = await this.chatTranslationAndAnswer(question);
-        this.saveChatInMemory(chat2);
+        this.saveChatInMemory(chat2, ChatHistoryType.Chat);
         this.logger('Chat saved ...');
         return this.chat();
       case ChatQuestionPattern.ChatTranslation:
         const chat3 = await this.chatTranslation(question);
-        this.saveChatInMemory(chat3);
+        this.saveChatInMemory(chat3, ChatHistoryType.Translation);
         this.logger('Chat saved ...');
         return this.chat();
       default:
         const chat4 = await this.chatText(question);
-        this.saveChatInMemory(chat4);
+        this.saveChatInMemory(chat4, ChatHistoryType.Chat);
         this.logger('Chat saved ...');
         return this.chat();
     }
@@ -107,18 +124,27 @@ export class Controller {
 
   private async chatTranslation(question: string) {
     const translationQuestion = this.makeTranslationQuestion(question);
-    return this.chatText(translationQuestion);
+    return this.chatText(translationQuestion, this.makeTranslationContext());
   }
 
   private async chatTranslationAndAnswer(question: string) {
     const translationQuestion = this.makeTranslationQuestion(question);
-    const chat = await this.chatText(translationQuestion);
-    this.saveChatInMemory(chat);
-    return this.chatText(chat.answer);
+    const chat = await this.chatText(translationQuestion, this.makeTranslationContext());
+    this.saveChatInMemory(chat, ChatHistoryType.Translation);
+
+    const translatedQuestion = chat.answer;
+    return this.chatText(translatedQuestion, [
+      ...this.makeHumanChatContext(),
+      ...this.makeHistories(translatedQuestion),
+    ]);
   }
 
-  private async chatText(question: string): Promise<Chat> {
-    const res = await this.openai.chat(question);
+  private async chatText(question: string, histories?: ChatCompletionRequestMessage[]): Promise<Chat> {
+    histories = histories || this.makeHistories(question);
+    if (Array.isArray(histories) && histories.length === 0) histories = undefined;
+
+    const res = await this.openai.chat(question, histories);
+
     let answer = '';
     await handleChatRes(
       res,
@@ -132,29 +158,27 @@ export class Controller {
     );
     answer += '\n';
 
-    return { question, answer };
+    return { question, answer } as Chat;
   }
 
   private async chatReplay() {
     this.logger('Start to replay last chat answer ...');
-    if (this.history.length === 0) {
+    if (this.histories.length === 0) {
       // no history chat to replay, go back
       this.logger('No history to replay ...');
-      return this.chat();
+      return;
     }
 
-    const last = this.history[this.history.length - 1];
+    const last = this.histories[this.histories.length - 1];
 
     this.speech.text2speech(last.answer);
-
-    return this.chat();
   }
 
-  private saveChatInMemory(chat: Chat) {
-    if (this.history.length === this.config.maxHistory) {
-      this.history.shift(); // remove the first one
+  private saveChatInMemory(chat: Chat, type: ChatHistoryType) {
+    if (this.histories.length === this.config.maxHistory) {
+      this.histories.shift(); // remove the first one
     }
-    this.history.push(chat);
+    this.histories.push({ ...chat, ...{ type } });
   }
 
   private async saveChatToFile() {
@@ -163,8 +187,50 @@ export class Controller {
       'Downloads',
       `openai-speech-chat.chat-history.${dayjs().unix()}.json`,
     );
-    await LibFs.promises.writeFile(filePath, JSON.stringify(this.history, undefined, 4));
-    return this.chat();
+    await LibFs.promises.writeFile(filePath, JSON.stringify(this.histories, undefined, 4));
+  }
+
+  private makeTranslationContext(): ChatCompletionRequestMessage[] {
+    return [
+      {
+        role: ChatCompletionRequestMessageRoleEnum.System,
+        content: 'You are a helpful translator.',
+      },
+    ];
+  }
+
+  private makeHumanChatContext(): ChatCompletionRequestMessage[] {
+    return [
+      {
+        role: ChatCompletionRequestMessageRoleEnum.System,
+        content: 'Please chat with me like a human being.',
+      },
+    ];
+  }
+
+  private makeHistories(currentQuestion: string): ChatCompletionRequestMessage[] {
+    if (this.histories.length === 0) {
+      return [];
+    }
+
+    const histories: ChatCompletionRequestMessage[] = [];
+    let tokenTotalSize = gpt3TokenAmountCalc(currentQuestion);
+
+    for (let i = this.histories.length - 1; i >= 0; i--) {
+      const chat: ChatHistory = this.histories[i];
+      if (chat.type === ChatHistoryType.Translation) {
+        continue; // skip translation type history
+      }
+      const question = chat.question;
+      const tokenSize = gpt3TokenAmountCalc(question);
+      if (tokenTotalSize + tokenSize >= this.tokenLimit) {
+        break; // end looping
+      }
+      tokenTotalSize += tokenSize;
+      histories.unshift({ role: ChatCompletionRequestMessageRoleEnum.User, content: question });
+    }
+
+    return histories;
   }
 
   private makeTranslationQuestion(question: string) {

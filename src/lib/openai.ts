@@ -1,16 +1,24 @@
-import { Configuration, CreateChatCompletionRequest, CreateChatCompletionResponse, OpenAIApi } from 'openai';
+import {
+  ChatCompletionRequestMessage,
+  Configuration,
+  CreateChatCompletionRequest,
+  CreateChatCompletionResponse,
+  OpenAIApi,
+} from 'openai';
 import { Config, ConfigData } from './config';
 import { AxiosError, AxiosRequestConfig, AxiosResponse, isAxiosError } from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Debugger } from 'debug';
 import { Logger, LoggerType } from './logger';
 import { IncomingMessage } from 'http';
+import { encode } from 'gpt-3-encoder';
 
 export const handleChatRes = (
   res: AxiosResponse<CreateChatCompletionResponse>,
   handle: (chunk: string | undefined) => void,
   end?: () => void,
 ) => {
+  const logger = Logger.buildLogger(LoggerType.openai);
   return new Promise((resolve) => {
     const stream = res.data as unknown as IncomingMessage;
 
@@ -29,7 +37,7 @@ export const handleChatRes = (
               handle(chunk);
             }
           } catch (error) {
-            Logger.buildLogger(LoggerType.openai)('Error when JSON.parse "%s". \nerror:\n%O', payload, error);
+            logger('Error when JSON.parse [%s]. \nerror:\n%O', payload, error);
           }
         }
       }
@@ -42,6 +50,11 @@ export const handleChatRes = (
       resolve(undefined);
     });
   });
+};
+
+export const gpt3TokenAmountCalc = (text: string) => {
+  // see https://platform.openai.com/tokenizer
+  return encode(text).length;
 };
 
 export class OpenAI {
@@ -66,10 +79,25 @@ export class OpenAI {
     this.openai = new OpenAIApi(configuration);
   }
 
-  public async chat(question: string): Promise<AxiosResponse<CreateChatCompletionResponse>> {
+  public async chat(
+    question: string,
+    histories?: ChatCompletionRequestMessage[],
+  ): Promise<AxiosResponse<CreateChatCompletionResponse>> {
+    // see https://platform.openai.com/docs/guides/gpt/chat-completions-api
+    let messages: ChatCompletionRequestMessage[];
+    if (histories) {
+      messages = [...histories, { role: 'user', content: question }];
+    } else {
+      messages = [{ role: 'user', content: question }];
+    }
+
+    if (this.config.logPrompt) {
+      this.logger('Prompt: %O', messages);
+    }
+
     const req: CreateChatCompletionRequest = {
       model: this.config.model,
-      messages: [{ role: 'user', content: question }],
+      messages,
       temperature: this.config.temperature,
       stream: true,
     };
