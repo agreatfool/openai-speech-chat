@@ -9,6 +9,9 @@ import { OpenAI, gpt3TokenAmountCalc, handleChatRes } from './openai';
 import { Config, ConfigData } from './config';
 import { Speech } from './speech';
 import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum } from 'openai';
+import { langdetect } from './language';
+
+const ISO6391 = require('iso-639-1');
 
 export interface Chat {
   question: string;
@@ -128,11 +131,15 @@ export class Controller {
   }
 
   private async chatTranslationAndAnswer(question: string) {
-    const translationQuestion = this.makeTranslationQuestion(question);
-    const chat = await this.chatText(translationQuestion, this.makeTranslationContext());
-    this.saveChatInMemory(chat, ChatHistoryType.Translation);
+    let translatedQuestion = question;
+    const lang = langdetect(question);
+    if (lang !== this.config.translate2) {
+      const translationQuestion = this.makeTranslationQuestion(question);
+      const chat = await this.chatText(translationQuestion, this.makeTranslationContext());
+      this.saveChatInMemory(chat, ChatHistoryType.Translation);
+      translatedQuestion = chat.answer;
+    }
 
-    const translatedQuestion = chat.answer;
     return this.chatText(translatedQuestion, [
       ...this.makeHumanChatContext(),
       ...this.makeHistories(translatedQuestion),
@@ -234,7 +241,7 @@ export class Controller {
   }
 
   private makeTranslationQuestion(question: string) {
-    return `Please translate "${question}" to ${this.config.translate2}`;
+    return `Please translate "${question}" to ${ISO6391.getName(this.config.translate2)}`;
   }
 
   private genChatHint() {

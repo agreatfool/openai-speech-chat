@@ -26,7 +26,7 @@ lang: # say command voice config, format: "lang: voice", all voice options `say 
   zh: Meijia
   en: Samantha
   ja: Kyoko
-translate2: japanese # the translation target language, in translation mode, no matter what you input, it would be sent to chatgpt to be translated into this lanuage
+translate2: ja # the translation target language code (use code here, like en cn ja), in translation mode, no matter what you input, it would be sent to chatgpt to be translated into this lanuage
 logPrompt: false # whether need to log the prompt sent to OpenAI, for debuging purpose
 ```
 

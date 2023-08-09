@@ -1,7 +1,7 @@
 apiKey: 
 model: gpt-3.5-turbo-16k
 modelTokenLimit: 16384
-modelTokenThrottle: 0.8
+modelTokenThrottle: 0.3
 temperature: 0.8
 useProxy: true
 proxyUrl: http://127.0.0.1:6152
@@ -10,5 +10,5 @@ lang:
   zh: Meijia
   en: Samantha
   ja: Kyoko
-translate2: japanese
+translate2: ja
 logPrompt: false
