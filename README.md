@@ -2,10 +2,12 @@
 
 ## Overview
 
+This tool is platform restricted! Only for MAC OSX.
+
 The main purpose of this project are:
 
 - Make ChatGPT (OpenAI) easy to use
-  - make it easily been used in CLI mode
+  - make it could easily been used in CLI mode
   - make it less memory occupied (no need to start a browser for it)
 - I'm learning new language, I want to make it easy to ask translation questions
 

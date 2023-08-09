@@ -1,7 +1,7 @@
 {
   "name": "@agreatfool/openai-speech-chat",
   "version": "1.0.0",
-  "description": "A tool could let you chat with ChatGPT in CLI, and make language learning easily",
+  "description": "A tool could let you chat with ChatGPT in CLI, and make language learning easy",
   "engines": {
     "node": ">=18.16"
   },
