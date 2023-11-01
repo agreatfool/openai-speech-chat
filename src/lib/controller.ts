@@ -210,7 +210,9 @@ export class Controller {
     return [
       {
         role: ChatCompletionRequestMessageRoleEnum.System,
-        content: 'Please chat with me like a human being.',
+        content: `Please chat with me like a human being. Make sure you will reply questions in ${ISO6391.getName(
+          this.config.translate2,
+        )}.`,
       },
     ];
   }
