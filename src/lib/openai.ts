@@ -18,6 +18,7 @@ export const handleChatRes = (
   handle: (chunk: string | undefined) => void,
   end?: () => void,
 ) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const logger = Logger.buildLogger(LoggerType.openai);
   return new Promise((resolve) => {
     const stream = res.data as unknown as IncomingMessage;
@@ -37,7 +38,8 @@ export const handleChatRes = (
               handle(chunk);
             }
           } catch (error) {
-            logger('Error when JSON.parse [%s]. \nerror:\n%O', payload, error);
+            // FIXME do not display failure logs, it's polluting response output
+            // logger('Error when JSON.parse [%s]. \nerror:\n%O', payload, error);
           }
         }
       }
