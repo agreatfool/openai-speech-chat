@@ -76,6 +76,7 @@ export class OpenAI {
     this.config = Config.instance.data;
     this.logger = Logger.buildLogger(LoggerType.openai);
     const configuration = new Configuration({
+      basePath: this.config.basePath,
       apiKey: this.config.apiKey,
     });
     this.openai = new OpenAIApi(configuration);

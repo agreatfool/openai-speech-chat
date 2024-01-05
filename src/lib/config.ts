@@ -8,6 +8,7 @@ export interface ConfigData {
   modelTokenLimit: number;
   modelTokenThrottle: number; // 0.8 means "80% of modelTokenLimit"
   temperature: number; // 0.8
+  basePath: string;
   useProxy: boolean;
   proxyUrl: string; // http://127.0.0.1:6152
   maxHistory: number;
