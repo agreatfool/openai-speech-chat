@@ -40,12 +40,12 @@
     "axios": "^1.4.0",
     "dayjs": "^1.11.9",
     "debug": "^4.3.4",
-    "gpt-3-encoder": "^1.1.4",
     "https-proxy-agent": "^7.0.1",
     "iso-639-1": "^2.1.15",
     "langdetect": "^0.2.1",
-    "openai": "^3.3.0",
+    "openai": "^4.28.0",
     "shelljs": "^0.8.5",
+    "tiktoken": "^1.0.13",
     "yaml": "^2.3.1"
   },
   "devDependencies": {

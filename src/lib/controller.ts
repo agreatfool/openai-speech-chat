@@ -5,11 +5,11 @@ import * as dayjs from 'dayjs';
 import { input } from '@inquirer/prompts';
 import { Debugger } from 'debug';
 import { Logger, LoggerType } from './logger';
-import { OpenAI, gpt3TokenAmountCalc, handleChatRes } from './openai';
+import { OpenAIInstance, gptTokenAmountCalc } from './openai';
 import { Config, ConfigData } from './config';
 import { Speech } from './speech';
-import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum } from 'openai';
 import { langdetect } from './language';
+import { ChatCompletionMessageParam } from 'openai/resources';
 
 const ISO6391 = require('iso-639-1');
 
@@ -47,7 +47,7 @@ export class Controller {
   private config: ConfigData;
   private logger: Debugger;
   private histories: ChatHistory[];
-  private openai: OpenAI;
+  private openai: OpenAIInstance;
   private speech: Speech;
   private pattern: ChatQuestionPattern;
   private tokenLimit: number;
@@ -56,7 +56,7 @@ export class Controller {
     this.config = Config.instance.data;
     this.logger = Logger.buildLogger(LoggerType.controller);
     this.histories = [];
-    this.openai = OpenAI.instance;
+    this.openai = OpenAIInstance.instance;
     this.speech = Speech.instance;
     this.pattern = ChatQuestionPattern.ChatText;
     this.tokenLimit = this.config.modelTokenLimit * this.config.modelTokenThrottle;
@@ -146,24 +146,12 @@ export class Controller {
     ]);
   }
 
-  private async chatText(question: string, histories?: ChatCompletionRequestMessage[]): Promise<Chat> {
+  private async chatText(question: string, histories?: ChatCompletionMessageParam[]): Promise<Chat> {
     histories = histories || this.makeHistories(question);
     if (Array.isArray(histories) && histories.length === 0) histories = undefined;
 
-    const res = await this.openai.chat(question, histories);
-
-    let answer = '';
-    await handleChatRes(
-      res,
-      (chunk: string) => {
-        process.stdout.write(chunk);
-        answer += chunk;
-      },
-      () => {
-        console.log('\n');
-      },
-    );
-    answer += '\n';
+    const { res } = await this.openai.chat(question, histories);
+    const answer = res.choices?.[0]?.message?.content || '';
 
     return { question, answer } as Chat;
   }
@@ -197,19 +185,19 @@ export class Controller {
     await LibFs.promises.writeFile(filePath, JSON.stringify(this.histories, undefined, 4));
   }
 
-  private makeTranslationContext(): ChatCompletionRequestMessage[] {
+  private makeTranslationContext(): ChatCompletionMessageParam[] {
     return [
       {
-        role: ChatCompletionRequestMessageRoleEnum.System,
+        role: 'system',
         content: 'You are a helpful translator.',
       },
     ];
   }
 
-  private makeHumanChatContext(): ChatCompletionRequestMessage[] {
+  private makeHumanChatContext(): ChatCompletionMessageParam[] {
     return [
       {
-        role: ChatCompletionRequestMessageRoleEnum.System,
+        role: 'system',
         content: `Please chat with me like a human being. Make sure you will reply questions in ${ISO6391.getName(
           this.config.translate2,
         )}.`,
@@ -217,26 +205,38 @@ export class Controller {
     ];
   }
 
-  private makeHistories(currentQuestion: string): ChatCompletionRequestMessage[] {
+  private makeHistories(currentQuestion: string): ChatCompletionMessageParam[] {
     if (this.histories.length === 0) {
       return [];
     }
 
-    const histories: ChatCompletionRequestMessage[] = [];
-    let tokenTotalSize = gpt3TokenAmountCalc(currentQuestion);
+    const histories: ChatCompletionMessageParam[] = [];
+    let tokenTotalSize = gptTokenAmountCalc(currentQuestion);
+
+    let sysHistoryAdded = false;
 
     for (let i = this.histories.length - 1; i >= 0; i--) {
       const chat: ChatHistory = this.histories[i];
       if (chat.type === ChatHistoryType.Translation) {
         continue; // skip translation type history
       }
-      const question = chat.question;
-      const tokenSize = gpt3TokenAmountCalc(question);
+      const { question, answer } = chat;
+      const tokenSize = gptTokenAmountCalc(question + answer);
       if (tokenTotalSize + tokenSize >= this.tokenLimit) {
         break; // end looping
       }
       tokenTotalSize += tokenSize;
-      histories.unshift({ role: ChatCompletionRequestMessageRoleEnum.User, content: question });
+
+      if (i === 0) {
+        sysHistoryAdded = true;
+      }
+      histories.unshift({ role: 'assistant', content: answer });
+      histories.unshift({ role: 'user', content: question });
+    }
+
+    if (!sysHistoryAdded) {
+      // system here
+      // {"role": "system", "content": "You are a helpful assistant."},
     }
 
     return histories;
