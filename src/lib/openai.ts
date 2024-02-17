@@ -10,8 +10,9 @@ import {
   ChatCompletionUserMessageParam,
 } from 'openai/resources';
 import { ChatCompletionStreamParams } from 'openai/lib/ChatCompletionStream';
+import axios, { AxiosResponse } from 'axios';
 
-export const gptTokenAmountCalc = (text: string) => {
+export const countGPTToken = (text: string) => {
   // see https://platform.openai.com/tokenizer
   const encoding = get_encoding('cl100k_base' as TiktokenEncoding);
   const encoded = encoding.encode(text);
@@ -35,8 +36,9 @@ export class OpenAIInstance {
     this.config = Config.instance.data;
     this.logger = Logger.buildLogger(LoggerType.openai);
     const configuration = {
-      baseURL: this.config.basePath,
+      baseURL: this.config.baseURL,
       apiKey: this.config.apiKey,
+      timeout: 20 * 1000, // 20 seconds (default is 10 minutes)
     } as ClientOptions;
     this.openai = new OpenAI(configuration);
   }
@@ -53,7 +55,7 @@ export class OpenAIInstance {
       messages = [{ role: 'user', content: question }];
     }
 
-    if (this.config.logPrompt) {
+    if (this.config.logPromptAndRes) {
       this.logger('Prompt: %O', messages);
     }
 
@@ -75,7 +77,7 @@ export class OpenAIInstance {
 
     const chatCompletion = await stream.finalChatCompletion();
 
-    if (this.config.logPrompt) {
+    if (this.config.logPromptAndRes) {
       this.logger('Response: %O', chatCompletion);
     }
 
@@ -83,5 +85,33 @@ export class OpenAIInstance {
       req,
       res: chatCompletion,
     };
+  }
+
+  public async fetchLimit() {
+    const data = {
+      temperature: 0.2,
+      // FIXME should be global variable, not fixed string
+      model: 'gpt-3.5-turbo-0125',
+      messages: [{ role: 'user', content: 'Say this is a test!' }],
+    };
+
+    const res: AxiosResponse = await axios.post(`${this.config.baseURL}/chat/completions`, data, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.config.apiKey}`,
+        timeout: 10 * 1000, // 10s
+      },
+    });
+
+    const headers2bPrinted = {};
+    for (const [key, val] of Object.entries(res.headers)) {
+      if (key === 'date' || key.startsWith('x-')) {
+        headers2bPrinted[key] = val;
+      }
+    }
+
+    this.logger(`response status: ${res.status}`);
+    this.logger(`response header: %O`, headers2bPrinted);
+    this.logger(`response: %O`, res.data);
   }
 }

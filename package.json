@@ -40,7 +40,6 @@
     "axios": "^1.4.0",
     "dayjs": "^1.11.9",
     "debug": "^4.3.4",
-    "https-proxy-agent": "^7.0.1",
     "iso-639-1": "^2.1.15",
     "langdetect": "^0.2.1",
     "openai": "^4.28.0",

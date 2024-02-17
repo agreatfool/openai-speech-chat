@@ -5,7 +5,7 @@ import * as dayjs from 'dayjs';
 import { input } from '@inquirer/prompts';
 import { Debugger } from 'debug';
 import { Logger, LoggerType } from './logger';
-import { OpenAIInstance, gptTokenAmountCalc } from './openai';
+import { OpenAIInstance, countGPTToken } from './openai';
 import { Config, ConfigData } from './config';
 import { Speech } from './speech';
 import { langdetect } from './language';
@@ -133,7 +133,7 @@ export class Controller {
   private async chatTranslationAndAnswer(question: string) {
     let translatedQuestion = question;
     const lang = langdetect(question);
-    if (lang !== this.config.translate2) {
+    if (lang !== this.config.options.optionsLang[0]) {
       const translationQuestion = this.makeTranslationQuestion(question);
       const chat = await this.chatText(translationQuestion, this.makeTranslationContext());
       this.saveChatInMemory(chat, ChatHistoryType.Translation);
@@ -199,7 +199,7 @@ export class Controller {
       {
         role: 'system',
         content: `Please chat with me like a human being. Make sure you will reply questions in ${ISO6391.getName(
-          this.config.translate2,
+          this.config.options.optionsLang[0],
         )}.`,
       },
     ];
@@ -211,7 +211,7 @@ export class Controller {
     }
 
     const histories: ChatCompletionMessageParam[] = [];
-    let tokenTotalSize = gptTokenAmountCalc(currentQuestion);
+    let tokenTotalSize = countGPTToken(currentQuestion);
 
     let sysHistoryAdded = false;
 
@@ -221,7 +221,7 @@ export class Controller {
         continue; // skip translation type history
       }
       const { question, answer } = chat;
-      const tokenSize = gptTokenAmountCalc(question + answer);
+      const tokenSize = countGPTToken(question + answer);
       if (tokenTotalSize + tokenSize >= this.tokenLimit) {
         break; // end looping
       }
@@ -243,7 +243,7 @@ export class Controller {
   }
 
   private makeTranslationQuestion(question: string) {
-    return `Please translate "${question}" to ${ISO6391.getName(this.config.translate2)}`;
+    return `Please translate "${question}" to ${ISO6391.getName(this.config.options.optionsLang[0])}`;
   }
 
   private genChatHint() {

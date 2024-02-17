@@ -26,13 +26,13 @@ export class Speech {
 
   public text2speech(text: string) {
     let lang = langdetect(text);
-    const langOptions = Object.keys(this.config.lang);
+    const langOptions = Object.keys(this.config.langVocal);
     if (!langOptions.includes(lang)) {
       this.logger('lang detected "%s" not found in options %o, use default en');
       lang = 'en';
     }
 
-    const voice = this.config.lang[lang];
+    const voice = this.config.langVocal[lang];
     const command = `say -v ${voice} "${text}"`;
 
     console.log(command);
