@@ -1,138 +1,128 @@
-import {
-  ChatCompletionRequestMessage,
-  Configuration,
-  CreateChatCompletionRequest,
-  CreateChatCompletionResponse,
-  OpenAIApi,
-} from 'openai';
-import { Config, ConfigData } from './config';
-import { AxiosError, AxiosRequestConfig, AxiosResponse, isAxiosError } from 'axios';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import { ClientOptions, OpenAI } from 'openai';
+import { Config } from './config';
 import { Debugger } from 'debug';
-import { Logger, LoggerType } from './logger';
-import { IncomingMessage } from 'http';
-import { encode } from 'gpt-3-encoder';
+import { Logger } from './logger';
+import { TiktokenEncoding, get_encoding } from 'tiktoken';
+import { ChatCompletion, ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources';
+import { ChatCompletionStreamParams } from 'openai/lib/ChatCompletionStream';
+import axios, { AxiosResponse } from 'axios';
+import { Controller } from './controller';
+import { ConfigData, LoggerType, StatusRateLimit } from './type';
 
-export const handleChatRes = (
-  res: AxiosResponse<CreateChatCompletionResponse>,
-  handle: (chunk: string | undefined) => void,
-  end?: () => void,
-) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const logger = Logger.buildLogger(LoggerType.openai);
-  return new Promise((resolve) => {
-    const stream = res.data as unknown as IncomingMessage;
-
-    stream.on('data', (chunk: Buffer) => {
-      const payloads = chunk.toString().split('\n\n');
-      for (const payload of payloads) {
-        if (payload.includes('[DONE]')) {
-          // end message, ignore it
-          return;
-        }
-        if (payload.startsWith('data:')) {
-          try {
-            const data = JSON.parse(payload.replace('data: ', ''));
-            const chunk: undefined | string = data.choices[0]?.delta?.content;
-            if (chunk) {
-              handle(chunk);
-            }
-          } catch (error) {
-            // FIXME do not display failure logs, it's polluting response output
-            // logger('Error when JSON.parse [%s]. \nerror:\n%O', payload, error);
-          }
-        }
-      }
-    });
-
-    stream.on('end', () => {
-      if (end) {
-        end();
-      }
-      resolve(undefined);
-    });
-  });
-};
-
-export const gpt3TokenAmountCalc = (text: string) => {
+export const countGPTToken = (text: string) => {
   // see https://platform.openai.com/tokenizer
-  return encode(text).length;
+  const encoding = get_encoding('cl100k_base' as TiktokenEncoding);
+  const encoded = encoding.encode(text);
+  return encoded.length;
 };
 
-export class OpenAI {
-  private static _instance: OpenAI;
+export class OpenAIInstance {
+  private static _instance: OpenAIInstance;
   public static get instance() {
-    if (!OpenAI._instance) {
-      OpenAI._instance = new OpenAI();
+    if (!OpenAIInstance._instance) {
+      OpenAIInstance._instance = new OpenAIInstance();
     }
-    return OpenAI._instance;
+    return OpenAIInstance._instance;
   }
 
   private config: ConfigData;
-  private openai: OpenAIApi;
+  private openai: OpenAI;
   private logger: Debugger;
 
   constructor() {
     this.config = Config.instance.data;
     this.logger = Logger.buildLogger(LoggerType.openai);
-    const configuration = new Configuration({
-      basePath: this.config.basePath,
+    const configuration = {
+      baseURL: this.config.baseURL,
       apiKey: this.config.apiKey,
-    });
-    this.openai = new OpenAIApi(configuration);
+      timeout: 10 * 1000, // 10 seconds (default is 10 minutes)
+    } as ClientOptions;
+    this.logger('Init OpenAI SDK instance with: %O', configuration);
+    this.openai = new OpenAI(configuration);
+  }
+
+  public calcTokenLimitAccording2Model(model: string) {
+    // model: config.options.optionsModel[x]
+    const modelLimit = this.config.modelTokenLimits[model] || this.config.modelTokenLimit;
+    const limit = Math.floor((modelLimit - this.config.modelResponseMaxToken) * this.config.modelTokenThrottle);
+    this.logger('Token limit "%d" calculated from model "%s"', limit, model);
+    return limit;
   }
 
   public async chat(
-    question: string,
-    histories?: ChatCompletionRequestMessage[],
-  ): Promise<AxiosResponse<CreateChatCompletionResponse>> {
-    // see https://platform.openai.com/docs/guides/gpt/chat-completions-api
-    let messages: ChatCompletionRequestMessage[];
-    if (histories) {
-      messages = [...histories, { role: 'user', content: question }];
-    } else {
-      messages = [{ role: 'user', content: question }];
+    messages: ChatCompletionMessageParam[],
+  ): Promise<{ req: ChatCompletionStreamParams; res: ChatCompletion }> {
+    // see https://platform.openai.com/docs/api-reference/chat
+
+    if (Controller.instance.status.logVerbose) {
+      this.logger('API Prompt: %O', messages);
     }
 
-    if (this.config.logPrompt) {
-      this.logger('Prompt: %O', messages);
-    }
-
-    const req: CreateChatCompletionRequest = {
-      model: this.config.model,
+    const req: ChatCompletionStreamParams = {
+      model: Controller.instance.status.model,
       messages,
-      temperature: this.config.temperature,
+      temperature: Controller.instance.status.temperature,
       stream: true,
     };
 
-    const axiosConfig: AxiosRequestConfig = { responseType: 'stream' };
-    if (this.config.useProxy) {
-      axiosConfig.httpAgent = new HttpsProxyAgent(this.config.proxyUrl);
-      axiosConfig.httpsAgent = axiosConfig.httpAgent;
+    // still beta here, maybe need to be fixed in later SDK version
+    const stream = await this.openai.beta.chat.completions.stream(req);
+
+    stream.on('chunk', (chunk: ChatCompletionChunk) => {
+      process.stdout.write(chunk.choices?.[0]?.delta?.content || '');
+    });
+    stream.on('chatCompletion', () => {
+      process.stdout.write('\n');
+    });
+
+    const chatCompletion: ChatCompletion = await stream.finalChatCompletion();
+
+    if (Controller.instance.status.logVerbose) {
+      this.logger('API Response: %O', chatCompletion);
     }
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      return this.openai.createChatCompletion(req, axiosConfig);
-    } catch (error) {
-      let status = -1;
-      let message = 'failed';
+    return {
+      req,
+      res: chatCompletion,
+    };
+  }
 
-      if (isAxiosError(error)) {
-        const err: AxiosError<string> = error;
-        const response = err.response;
-        status = response ? response.status : -1;
-        message = response ? JSON.stringify(response.data) : error.message;
-        this.logger('OpenAI request failed, status: %d, data: %s', status, message);
-      } else {
-        const err: Error = error;
-        message = err.message;
-        this.logger('OpenAI request failed, status: -1, data: %s', message);
+  public async fetchAPIRateLimit(): Promise<StatusRateLimit> {
+    const model = Controller.instance.status.model;
+    const data = {
+      temperature: 0.2,
+      model,
+      messages: [{ role: 'user', content: 'Say this is a test!' }],
+    };
+
+    const res: AxiosResponse = await axios.post(`${this.config.baseURL}/chat/completions`, data, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.config.apiKey}`,
+        timeout: 10 * 1000, // 10s
+      },
+    });
+
+    const headers2bPrinted = {};
+    for (const [key, val] of Object.entries(res.headers)) {
+      if (key === 'date' || key.startsWith('x-')) {
+        headers2bPrinted[key] = val;
       }
-
-      // we will still throw the error after logging
-      throw error;
     }
+
+    this.logger(`Limit API response status: ${res.status}`);
+    this.logger(`Limit API response headers: %O`, headers2bPrinted);
+    this.logger(`Limit API response: %O`, res.data);
+
+    return {
+      model,
+      date: headers2bPrinted['date'] || 'unknown',
+      limitRequests: headers2bPrinted['x-ratelimit-limit-requests'] || 'unknown',
+      limitTokens: headers2bPrinted['x-ratelimit-limit-tokens'] || 'unknown',
+      remainingRequests: headers2bPrinted['x-ratelimit-remaining-requests'] || 'unknown',
+      remainingTokens: headers2bPrinted['x-ratelimit-remaining-tokens'] || 'unknown',
+      resetRequests: headers2bPrinted['x-ratelimit-reset-requests'] || 'unknown',
+      resetTokens: headers2bPrinted['x-ratelimit-reset-tokens'] || 'unknown',
+    } as StatusRateLimit;
   }
 }

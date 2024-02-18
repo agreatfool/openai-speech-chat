@@ -1,15 +1,49 @@
-apiKey: 
-model: gpt-3.5-turbo-16k
-modelTokenLimit: 16384
-modelTokenThrottle: 0.3
-temperature: 0.8
-basePath: https://api.openai.com/v1
-useProxy: true
+# https://platform.openai.com/account/api-keys
+apiKey:
+
+temperature: 0.2 # lower means stable response, higher means more random
+baseURL: https://api.openai.com/v1
+useProxy: false
 proxyUrl: http://127.0.0.1:6152
-maxHistory: 500
-lang:
+maxHistory: 2500
+
+model: gpt-3.5-turbo-0125 # default
+modelTokenLimit: 16385 # default
+modelTokenThrottle: 0.8 # available token count: (modelTokenLimits[x] - modelResponseMaxToken) * modelTokenThrottle
+modelResponseMaxToken: 4096 # official value
+modelTokenLimits:
+  gpt-3.5-turbo-0125: 16385 # gpt-3.5 https://platform.openai.com/docs/models/gpt-3-5-turbo
+  gpt-4-0125-preview: 128000 # gpt-4 https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+
+options:
+  optionsModel: # https://platform.openai.com/docs/models
+    - gpt-3.5-turbo-0125
+    - gpt-4-0125-preview
+  optionsAssistant:
+    - name: common # default
+      prompt: You are a helpful assistant.
+      description: For normal using, AI would act like a machine to answer your questions.
+    - name: commonTranslated
+      prompt: You are a helpful assistant. You will always reply questions in "{LANG}".
+      description: For language learning purpose, your question would be translate to target language, then ask AI with the translated question. Means there would be 2 API calls.
+    - name: commonLang
+      prompt: You are a helpful assistant. You will always reply questions in "{LANG}".
+      description: For normal using, AI would always reply with specified language.
+    - name: translator
+      prompt: You are a translator. You will be provided with a sentence, and your task is to translate it into language "{LANG}".
+      description: For translation purpose, there won't be any creative response, only the translated sentence.
+    - name: chat
+      prompt: Act like you are real human, chatting with an old friend.
+      description: For chatting purpose, AI would act like a human.
+    - name: chatTranslated
+      prompt: Act like you are real human, a native speaker of language "{LANG}", chatting with an old friend. You will always speak in "{LANG}".
+      description: For chatting purpose, AI would use specified language chat with you, act like a human.
+  optionsLang:
+    - ja # default
+    - en
+    - zh
+langVocal:
   zh: Meijia
   en: Samantha
   ja: Kyoko
-translate2: ja
-logPrompt: false
+logVerbose: false # default

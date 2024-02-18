@@ -1,21 +1,9 @@
 import * as LibPath from 'path';
 import * as LibFs from 'fs';
 import { parse } from 'yaml';
-
-export interface ConfigData {
-  apiKey: string; // see: https://platform.openai.com/account/api-keys
-  model: string; // see: https://platform.openai.com/docs/models
-  modelTokenLimit: number;
-  modelTokenThrottle: number; // 0.8 means "80% of modelTokenLimit"
-  temperature: number; // 0.8
-  basePath: string;
-  useProxy: boolean;
-  proxyUrl: string; // http://127.0.0.1:6152
-  maxHistory: number;
-  lang: { [lang: string]: string }; // { zh: "Meijia" }
-  translate2: string; // japanese
-  logPrompt: boolean;
-}
+import { ConfigData, LoggerType } from './type';
+import { Logger } from './logger';
+import { Debugger } from 'debug';
 
 export class Config {
   private static _instance: Config;
@@ -26,12 +14,27 @@ export class Config {
     return Config._instance;
   }
 
+  private logger: Debugger;
   private readonly _data: ConfigData;
 
   constructor() {
+    this.logger = Logger.buildLogger(LoggerType.config);
     const configPath = LibPath.join(__dirname, '../../config.yaml');
+    this.logger('Reading config file: %s', configPath);
+
+    try {
+      const stat = LibFs.statSync(configPath);
+      if (!stat.isFile()) {
+        this.logger('Error in reading config file, not file: %s', configPath);
+        process.exit(1);
+      }
+    } catch (err) {
+      this.logger('Error in reading config file: %s\nerr:\n%O', configPath, err);
+      process.exit(1);
+    }
     const content = LibFs.readFileSync(configPath).toString();
     this._data = parse(content) as ConfigData;
+    this.logger('Config initialized: %O', this._data);
   }
 
   public get data() {
