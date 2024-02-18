@@ -1,12 +1,5 @@
 import * as debug from 'debug';
-
-const LOGGER_PREFIX = 'openai-speech-chat:';
-
-export enum LoggerType {
-  controller = 'controller',
-  openai = 'openai',
-  speech = 'speech',
-}
+import { LOGGER_PREFIX, LoggerType } from './type';
 
 export class Logger {
   private static loggers: { [name: string]: debug.Debugger } = {};

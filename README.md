@@ -15,23 +15,6 @@ The main purpose of this project are:
 
 Rename `config.yaml.example` to `config.yaml`, and edit it.
 
-```yaml
-apiKey: # put your chatgpt apikey here
-model: gpt-3.5-turbo-16k # see https://platform.openai.com/docs/models
-modelTokenLimit: 16384 # the OpenAI official token size limit for the model above
-modelTokenThrottle: 0.8 # "modelTokenLimit * modelTokenThrottle" would be the limit of total histories brought together to make a chat request
-temperature: 0.8 # What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
-useProxy: true # whether call chatgpt API over proxy
-proxyUrl: http://127.0.0.1:6152 # proxy setting
-maxHistory: 100 # max chat history to save in node.js process memory
-lang: # say command voice config, format: "lang: voice", all voice options `say -v "?"`
-  zh: Meijia
-  en: Samantha
-  ja: Kyoko
-translate2: ja # the translation target language code (use code here, like en cn ja), in translation mode, no matter what you input, it would be sent to chatgpt to be translated into this lanuage
-logPrompt: false # whether need to log the prompt sent to OpenAI, for debuging purpose
-```
-
 ## Install & Usage
 
 ### Install
@@ -47,26 +30,104 @@ $ npm install && npm run build
 Execute `openai-speech-chat` directly after installing.
 
 ```
-$ openai-speech-chat
-? Input the chat text (mode: cx).
-Input "cx" to switch to text chat mode.
-Input "ct" to switch to target language translate mode.
-Input "ca" to switch to target language chat mode.
-Input "cr" to replay last chat answer in speech.
-Input "cs" to save chat history to disk.
-Chat:
+➜  openai-speech-chat git:(rebuild) ✗ openai-speech-chat
+  chat-app:config Reading config file: /Users/jonathan/Prog/Codes/NodeJs/openai-speech-chat/config.yaml +0ms
+  chat-app:config Config initialized: {
+  chat-app:config   apiKey: '???????',
+  chat-app:config   temperature: 0.2,
+  chat-app:config   baseURL: 'https://api.openai.com/v1',
+  chat-app:config   useProxy: false,
+  chat-app:config   proxyUrl: 'http://127.0.0.1:6152',
+  chat-app:config   maxHistory: 2500,
+  chat-app:config   model: 'gpt-3.5-turbo-0125',
+  chat-app:config   modelTokenLimit: 16385,
+  chat-app:config   modelTokenThrottle: 0.8,
+  chat-app:config   modelResponseMaxToken: 4096,
+  chat-app:config   modelTokenLimits: { 'gpt-3.5-turbo-0125': 16385, 'gpt-4-0125-preview': 128000 },
+  chat-app:config   options: {
+  chat-app:config     optionsModel: [ 'gpt-3.5-turbo-0125', 'gpt-4-0125-preview' ],
+  chat-app:config     optionsAssistant: [
+  chat-app:config       {
+  chat-app:config         name: 'common',
+  chat-app:config         prompt: 'You are a helpful assistant.',
+  chat-app:config         description: 'For normal using, AI would act like a machine to answer your questions.'
+  chat-app:config       },
+  chat-app:config       {
+  chat-app:config         name: 'commonTranslated',
+  chat-app:config         prompt: 'You are a helpful assistant. You will always reply questions in "{LANG}".',
+  chat-app:config         description: 'For language learning purpose, your question would be translate to target language, then ask AI with the translated question. Means there would be 2 API calls.'
+  chat-app:config       },
+  chat-app:config       {
+  chat-app:config         name: 'commonLang',
+  chat-app:config         prompt: 'You are a helpful assistant. You will always reply questions in "{LANG}".',
+  chat-app:config         description: 'For normal using, AI would always reply with specified language.'
+  chat-app:config       },
+  chat-app:config       {
+  chat-app:config         name: 'translator',
+  chat-app:config         prompt: 'You are a translator. You will be provided with a sentence, and your task is to translate it into language "{LANG}".',
+  chat-app:config         description: "For translation purpose, there won't be any creative response, only the translated sentence."
+  chat-app:config       },
+  chat-app:config       {
+  chat-app:config         name: 'chat',
+  chat-app:config         prompt: 'Act like you are real human, chatting with an old friend.',
+  chat-app:config         description: 'For chatting purpose, AI would act like a human.'
+  chat-app:config       },
+  chat-app:config       {
+  chat-app:config         name: 'chatTranslated',
+  chat-app:config         prompt: 'Act like you are real human, a native speaker of language "{LANG}", chatting with an old friend. You will always speak in "{LANG}".',
+  chat-app:config         description: 'For chatting purpose, AI would use specified language chat with you, act like a human.'
+  chat-app:config       }
+  chat-app:config     ],
+  chat-app:config     optionsLang: [ 'ja', 'en', 'zh' ]
+  chat-app:config   },
+  chat-app:config   langVocal: { zh: 'Meijia', en: 'Samantha', ja: 'Kyoko' },
+  chat-app:config   logVerbose: false
+  chat-app:config } +7ms
+  chat-app:openai Init OpenAI SDK instance with: {
+  chat-app:openai   baseURL: 'https://api.openai.com/v1',
+  chat-app:openai   apiKey: '???????',
+  chat-app:openai   timeout: 10000
+  chat-app:openai } +0ms
+  chat-app:openai Token limit "9831" calculated from model "gpt-3.5-turbo-0125" +0ms
+  chat-app:controller System initialized with status: {
+  chat-app:controller   model: 'gpt-3.5-turbo-0125',
+  chat-app:controller   assistant: {
+  chat-app:controller     name: 'common',
+  chat-app:controller     prompt: 'You are a helpful assistant.',
+  chat-app:controller     description: 'For normal using, AI would act like a machine to answer your questions.'
+  chat-app:controller   },
+  chat-app:controller   tokenLimit: 9831,
+  chat-app:controller   targetLang: 'ja',
+  chat-app:controller   rateLimit: {
+  chat-app:controller     model: 'unknown',
+  chat-app:controller     date: 'unknown',
+  chat-app:controller     limitRequests: 'unknown',
+  chat-app:controller     limitTokens: 'unknown',
+  chat-app:controller     remainingRequests: 'unknown',
+  chat-app:controller     remainingTokens: 'unknown',
+  chat-app:controller     resetRequests: 'unknown',
+  chat-app:controller     resetTokens: 'unknown'
+  chat-app:controller   },
+  chat-app:controller   logVerbose: false
+  chat-app:controller } +0ms
+Type anything you want to chat with OpenAI API.
+Some "Reserved Words" are used as "Commands":
+Input "cmd" to list all available commands for you to choose.
+Input "models" to list and select the OpenAI model you want to choose.
+Input "assistants" to list and select the assistant mode you want to choose.
+Input "langs" to list and select the target translation language.
+Input "log" to list and select the log type.
+Input "temperature" to edit the AI temperature [0.1 - 1.0, e.g 0.2~0.8].Input "status" to show current cli app status.
+Input "speak" to speak last chat answer.
+Input "history" to show all the chat history till now.
+Input "reset" to clear all existing historical histories, like starting a new session.
+Input "save" to save chat history to "~/Downloads".
+Input "limit" to fetch latest API limit status from OpenAI.
+Input "help" to print this help message.
+Input "exit" to exit app.
+
+? Chat:
 ```
-
-Some commands could be used:
-
-- type `cx` in the Chat input, to switch to text chat mode (default mode)
-  - talk with ChatGPT with text input
-- type `ct` in the Chat input, to switch to translation mode
-  - input anything in the Chat input, it would be translated into target language (settings in the config file)
-- type `ca` in the Chat input, to switch to translation and chat mode
-  - input anything in the Chat input, it would be translated into target language and this translated input would be sent to ChatGPT to chat
-- type `cr` in the Chat input, would call `say` command to Text-to-Speech the last answer from ChatGPT
-- type `cs` in the Chat input, would save all the history chats data into `~/Downloads/openai-speech-chat.chat-history.${dayjs().unix()}.json`
 
 ## Speech Solution
 

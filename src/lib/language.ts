@@ -1,15 +1,12 @@
 import { detect } from 'langdetect';
-
-interface LangDetected {
-  lang: string; // 'zh-cn' | 'ja' | 'en'
-  prob: number; // 0.9999999998813774
-}
+import { LangDetected } from './type';
+import { Config } from './config';
 
 export const langdetect = (text: string): string => {
   const detected: LangDetected[] = detect(text);
 
   if (!detected || !Array.isArray(detected) || detected.length === 0) {
-    return 'en';
+    return Config.instance.data.options.optionsLang[0]; // default
   }
 
   let res: LangDetected = detected[0];
@@ -21,7 +18,7 @@ export const langdetect = (text: string): string => {
     }
   }
 
-  const lang = res.lang;
+  const { lang } = res;
 
   return (lang.includes('-') ? lang.split('-').shift() : lang).toLowerCase(); // zh-cn => zh, en => en
 };

@@ -2,38 +2,38 @@ import * as LibFs from 'fs';
 import * as LibOs from 'os';
 import * as LibPath from 'path';
 import * as dayjs from 'dayjs';
-import { input } from '@inquirer/prompts';
 import { Debugger } from 'debug';
-import { Logger, LoggerType } from './logger';
+import { Logger } from './logger';
 import { OpenAIInstance, countGPTToken } from './openai';
-import { Config, ConfigData } from './config';
+import { Config } from './config';
 import { Speech } from './speech';
-import { langdetect } from './language';
 import { ChatCompletionMessageParam } from 'openai/resources';
+import { CliIO } from './cli';
+import { ChatHistory } from './history';
+import {
+  ASSISTANT_TRANSLATOR_LANG_PH,
+  AssistantNames,
+  CliChat,
+  CliChatType,
+  ConfigData,
+  ConfigOptionAssistant,
+  CliCommands,
+  Status,
+  LoggerType,
+  ChatOptions,
+  ASSISTANT_TRANSLATOR_NAME,
+  CliCommandLogOptions,
+} from './type';
 
 const ISO6391 = require('iso-639-1');
 
-export interface Chat {
-  question: string;
-  answer: string;
-}
-
-export interface ChatHistory extends Chat {
-  type: ChatHistoryType;
-}
-
-export enum ChatQuestionPattern {
-  ChatText = 'cx',
-  ChatTranslation = 'ct',
-  ChatTranslationAndAnswer = 'ca',
-  ChatReplay = 'cr',
-  ChatSave = 'cs',
-}
-
-export enum ChatHistoryType {
-  Chat = 'Chat',
-  Translation = 'Translation',
-}
+export const isNumeric = (str: string) => {
+  if (typeof str !== 'string') return false; // we only process strings!
+  return (
+    !isNaN(str as unknown as number) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
+    !isNaN(parseFloat(str))
+  ); // ...and ensure strings of whitespace fail
+};
 
 export class Controller {
   private static _instance: Controller;
@@ -46,217 +46,329 @@ export class Controller {
 
   private config: ConfigData;
   private logger: Debugger;
-  private histories: ChatHistory[];
+  private cliIO: CliIO;
   private openai: OpenAIInstance;
   private speech: Speech;
-  private pattern: ChatQuestionPattern;
-  private tokenLimit: number;
+  private histories: ChatHistory;
+  private _status: Status;
 
   constructor() {
     this.config = Config.instance.data;
     this.logger = Logger.buildLogger(LoggerType.controller);
-    this.histories = [];
+    this.cliIO = new CliIO();
     this.openai = OpenAIInstance.instance;
     this.speech = Speech.instance;
-    this.pattern = ChatQuestionPattern.ChatText;
-    this.tokenLimit = this.config.modelTokenLimit * this.config.modelTokenThrottle;
+    this.histories = ChatHistory.instance;
+
+    this._status = {
+      model: this.config.model,
+      assistant: this.config.options.optionsAssistant[0],
+      tokenLimit: this.openai.calcTokenLimitAccording2Model(this.config.model),
+      targetLang: this.config.options.optionsLang[0],
+      rateLimit: {
+        model: 'unknown',
+        date: 'unknown',
+        limitRequests: 'unknown',
+        limitTokens: 'unknown',
+        remainingRequests: 'unknown',
+        remainingTokens: 'unknown',
+        resetRequests: 'unknown',
+        resetTokens: 'unknown',
+      },
+      logVerbose: this.config.logVerbose,
+    } as Status;
+
+    this.logger('System initialized with status: %O', this._status);
+  }
+
+  public get status(): Status {
+    return this._status;
   }
 
   public async start() {
-    return this.chat();
+    await this.cmdHelp();
+    return this.process();
   }
 
-  private async chat() {
-    const question = await input({ message: this.genChatHint() });
-    if (!question) {
-      return this.chat();
-    }
-    if (question === ChatQuestionPattern.ChatReplay) {
-      await this.chatReplay();
-      return this.chat();
-    }
-    if (question === ChatQuestionPattern.ChatSave) {
-      await this.saveChatToFile();
-      return this.chat();
+  private async process() {
+    let input = await this.cliIO.chat();
+    if (!input) {
+      // wrong input, no content, skip processing
+      return this.process();
     }
 
-    switch (question) {
-      case ChatQuestionPattern.ChatText:
-        this.pattern = ChatQuestionPattern.ChatText;
-        this.logger('Swtich pattern to "ChatText" ...');
-        return this.chat();
-      case ChatQuestionPattern.ChatTranslation:
-        this.pattern = ChatQuestionPattern.ChatTranslation;
-        this.logger('Swtich pattern to "ChatTranslation" ...');
-        return this.chat();
-      case ChatQuestionPattern.ChatTranslationAndAnswer:
-        this.pattern = ChatQuestionPattern.ChatTranslationAndAnswer;
-        this.logger('Swtich pattern to "ChatTranslationAndAnswer" ...');
-        this.logger('Swtich to human being like chat mode, remove old histories ...');
-        if (this.histories.length > 0) await this.saveChatToFile();
-        this.histories = [];
-        return this.chat();
+    if (input === CliCommands.cmd) {
+      const availableCommands = Object.values(CliCommands).filter((command: string) => {
+        return command !== CliCommands.cmd; // remove "cmd" itself
+      });
+      input = await this.cliIO.select('Select command:', availableCommands);
+    }
+
+    switch (input) {
+      case CliCommands.models:
+        await this.cmdModels();
+        break;
+      case CliCommands.assistants:
+        await this.cmdAssistants();
+        break;
+      case CliCommands.langs:
+        await this.cmdLangs();
+        break;
+      case CliCommands.log:
+        await this.cmdLog();
+        break;
+      case CliCommands.temperature:
+        await this.cmdTemperature();
+        break;
+      case CliCommands.status:
+        await this.cmdStatus();
+        break;
+      case CliCommands.speak:
+        await this.cmdSpeak();
+        break;
+      case CliCommands.history:
+        await this.cmdHistory();
+        break;
+      case CliCommands.reset:
+        await this.cmdReset();
+        break;
+      case CliCommands.save:
+        await this.cmdSave();
+        break;
+      case CliCommands.limit:
+        await this.cmdLimit();
+        break;
+      case CliCommands.help:
+        await this.cmdHelp();
+        break;
+      case CliCommands.exit:
+        process.exit(0);
+        break;
       default:
-        // do nothing
+        await this.chat(input);
         break;
     }
 
-    switch (this.pattern) {
-      case ChatQuestionPattern.ChatText:
-        const chat1 = await this.chatText(question);
-        this.saveChatInMemory(chat1, ChatHistoryType.Chat);
-        this.logger('Chat saved ...');
-        return this.chat();
-      case ChatQuestionPattern.ChatTranslationAndAnswer:
-        const chat2 = await this.chatTranslationAndAnswer(question);
-        this.saveChatInMemory(chat2, ChatHistoryType.Chat);
-        this.logger('Chat saved ...');
-        return this.chat();
-      case ChatQuestionPattern.ChatTranslation:
-        const chat3 = await this.chatTranslation(question);
-        this.saveChatInMemory(chat3, ChatHistoryType.Translation);
-        this.logger('Chat saved ...');
-        return this.chat();
+    return this.process();
+  }
+
+  private async chat(input: string) {
+    const assistant = this._status.assistant;
+
+    switch (assistant.name) {
+      case AssistantNames.translator:
+        await this.chatTranslation({ question: input });
+        break;
+      case AssistantNames.commonTranslated:
+        const { answer: translatedQuestion } = await this.chatTranslation({ question: input });
+        await this.chatText({ question: translatedQuestion });
+        break;
       default:
-        const chat4 = await this.chatText(question);
-        this.saveChatInMemory(chat4, ChatHistoryType.Chat);
-        this.logger('Chat saved ...');
-        return this.chat();
+        await this.chatText({ question: input });
+        break;
     }
   }
 
-  private async chatTranslation(question: string) {
-    const translationQuestion = this.makeTranslationQuestion(question);
-    return this.chatText(translationQuestion, this.makeTranslationContext());
+  private async chatText(options: ChatOptions): Promise<CliChat> {
+    const { question } = options;
+    const need2AppendHistory = options.need2AppendHistory === undefined ? true : options.need2AppendHistory;
+    const systemPrompt = options.systemPrompt || this.replacePromptPH(this._status.assistant.prompt);
+    const chatType = options.chatType || CliChatType.Chat;
+
+    const messages = this.buildAPICallMessages({
+      currentQuestion: question,
+      systemPrompt,
+      need2AppendHistory,
+    });
+
+    const { req, res } = await this.openai.chat(messages);
+    const answer = res.choices[0]?.message?.content || '';
+    const history: CliChat = { question, answer, req, res, type: chatType };
+    this.histories.append(history);
+
+    return history;
   }
 
-  private async chatTranslationAndAnswer(question: string) {
-    let translatedQuestion = question;
-    const lang = langdetect(question);
-    if (lang !== this.config.options.optionsLang[0]) {
-      const translationQuestion = this.makeTranslationQuestion(question);
-      const chat = await this.chatText(translationQuestion, this.makeTranslationContext());
-      this.saveChatInMemory(chat, ChatHistoryType.Translation);
-      translatedQuestion = chat.answer;
-    }
+  private async chatTranslation(options: ChatOptions): Promise<CliChat> {
+    const { question } = options;
+    const prompt = this.config.options.optionsAssistant
+      .filter((assistant: ConfigOptionAssistant) => {
+        return assistant.name === ASSISTANT_TRANSLATOR_NAME;
+      })
+      ?.shift().prompt;
+    return this.chatText({
+      question,
+      systemPrompt: this.replacePromptPH(prompt),
+      need2AppendHistory: false,
+      chatType: CliChatType.Translation,
+    });
+  }
 
-    return this.chatText(translatedQuestion, [
-      ...this.makeHumanChatContext(),
-      ...this.makeHistories(translatedQuestion),
+  private async cmdModels() {
+    const modelName = await this.cliIO.select('Select OpenAI model:', this.config.options.optionsModel);
+
+    // set model
+    this._status.model = modelName;
+    // set token limit according to model switching
+    this._status.tokenLimit = this.openai.calcTokenLimitAccording2Model(modelName);
+  }
+
+  private async cmdAssistants() {
+    const selectedName = await this.cliIO.select(
+      'Select assistant mode:',
+      this.config.options.optionsAssistant.map((assistant: ConfigOptionAssistant) => {
+        return { name: assistant.name, value: assistant.name, description: assistant.description };
+      }),
+    );
+    const selected = this.config.options.optionsAssistant
+      .filter((assistant: ConfigOptionAssistant) => {
+        return assistant.name === selectedName;
+      })
+      ?.shift();
+    if (selected) {
+      this._status.assistant = selected;
+    }
+  }
+
+  private async cmdLangs() {
+    const lang = await this.cliIO.select('Select target translation lang:', this.config.options.optionsLang);
+    this._status.targetLang = lang;
+  }
+
+  private async cmdLog() {
+    const logVerbose = await this.cliIO.select('Select log mode:', [
+      {
+        name: CliCommandLogOptions.silent,
+        value: CliCommandLogOptions.silent,
+        description: 'Do not log messages other than AI responses (for normal using).',
+      },
+      {
+        name: CliCommandLogOptions.verbose,
+        value: CliCommandLogOptions.verbose,
+        description: 'Log request and response and debug details (for debugging purpose).',
+      },
     ]);
+    switch (logVerbose) {
+      case CliCommandLogOptions.silent:
+        this._status.logVerbose = false;
+        break;
+      case CliCommandLogOptions.verbose:
+        this._status.logVerbose = true;
+        break;
+      default:
+        this._status.logVerbose = false;
+        break;
+    }
   }
 
-  private async chatText(question: string, histories?: ChatCompletionMessageParam[]): Promise<Chat> {
-    histories = histories || this.makeHistories(question);
-    if (Array.isArray(histories) && histories.length === 0) histories = undefined;
-
-    const { res } = await this.openai.chat(question, histories);
-    const answer = res.choices?.[0]?.message?.content || '';
-
-    return { question, answer } as Chat;
+  private async cmdTemperature() {
+    let input: string | number = await this.cliIO.input('Start to input the temperature [0.1 - 1.0]:');
+    if (!isNumeric(input)) {
+      // invalid input, no change
+      return;
+    }
+    input = parseFloat(input);
+    if (input < 0.1 || input > 1) {
+      // invalid input, no change
+      return;
+    }
+    this._status.temperature = input;
   }
 
-  private async chatReplay() {
-    this.logger('Start to replay last chat answer ...');
-    if (this.histories.length === 0) {
+  private async cmdStatus() {
+    this.logger('Start to display current status ...\n%O', this._status);
+  }
+
+  private async cmdSpeak() {
+    this.logger('Start to speak last chat answer ...');
+    if (!this.histories.hasHistory()) {
       // no history chat to replay, go back
-      this.logger('No history to replay ...');
+      this.logger('No history to speak ...');
       return;
     }
 
-    const last = this.histories[this.histories.length - 1];
-
-    this.speech.text2speech(last.answer);
-  }
-
-  private saveChatInMemory(chat: Chat, type: ChatHistoryType) {
-    if (this.histories.length === this.config.maxHistory) {
-      this.histories.shift(); // remove the first one
+    const last: CliChat | undefined = this.histories.fetchLast();
+    if (last) {
+      this.speech.text2speech(last.answer);
     }
-    this.histories.push({ ...chat, ...{ type } });
   }
 
-  private async saveChatToFile() {
-    const filePath = LibPath.join(
-      LibOs.homedir(),
-      'Downloads',
-      `openai-speech-chat.chat-history.${dayjs().unix()}.json`,
-    );
-    await LibFs.promises.writeFile(filePath, JSON.stringify(this.histories, undefined, 4));
+  private async cmdHistory() {
+    this.logger('Start to display histories ...\n%O', this.histories.fetchRaw());
   }
 
-  private makeTranslationContext(): ChatCompletionMessageParam[] {
-    return [
-      {
-        role: 'system',
-        content: 'You are a helpful translator.',
-      },
-    ];
+  private async cmdReset() {
+    this.logger('Start to clear all histories ...');
+    this.histories.clear();
   }
 
-  private makeHumanChatContext(): ChatCompletionMessageParam[] {
-    return [
-      {
-        role: 'system',
-        content: `Please chat with me like a human being. Make sure you will reply questions in ${ISO6391.getName(
-          this.config.options.optionsLang[0],
-        )}.`,
-      },
-    ];
+  private async cmdSave() {
+    const time = dayjs().unix();
+    const basePath = LibPath.join(LibOs.homedir(), 'Downloads');
+
+    const chatPath = LibPath.join(basePath, `openai-speech-chat.chat-history.${time}.json`);
+    const detailPath = LibPath.join(basePath, `openai-speech-chat.chat-history.detail.${time}.json`);
+
+    this.logger(`Start to save histories to local:\n${chatPath}\n${detailPath}`);
+    await LibFs.promises.writeFile(chatPath, JSON.stringify(this.histories.fetchRaw(), undefined, 4));
+    await LibFs.promises.writeFile(detailPath, JSON.stringify(this.histories.fetch(), undefined, 4));
   }
 
-  private makeHistories(currentQuestion: string): ChatCompletionMessageParam[] {
-    if (this.histories.length === 0) {
-      return [];
-    }
+  private async cmdLimit() {
+    this.logger('start to fetch API limit ...');
+    const limit = await this.openai.fetchAPIRateLimit();
+    this._status.rateLimit = limit;
+  }
 
-    const histories: ChatCompletionMessageParam[] = [];
-    let tokenTotalSize = countGPTToken(currentQuestion);
+  private async cmdHelp() {
+    console.log(this.cliIO.genMsgHelp());
+  }
 
-    let sysHistoryAdded = false;
+  private replacePromptPH(prompt: string) {
+    // replace language placeholder
+    const langFull = ISO6391.getName(this._status.targetLang);
+    const pattern = new RegExp(ASSISTANT_TRANSLATOR_LANG_PH, 'g');
+    prompt = prompt.replace(pattern, langFull);
 
-    for (let i = this.histories.length - 1; i >= 0; i--) {
-      const chat: ChatHistory = this.histories[i];
-      if (chat.type === ChatHistoryType.Translation) {
-        continue; // skip translation type history
+    return prompt;
+  }
+
+  private buildAPICallMessages(options: {
+    currentQuestion: string;
+    systemPrompt: string;
+    need2AppendHistory: boolean;
+  }): ChatCompletionMessageParam[] {
+    const { currentQuestion, systemPrompt, need2AppendHistory } = options;
+
+    // init message
+    const messages: ChatCompletionMessageParam[] = [{ role: 'user', content: currentQuestion }];
+
+    // histories
+    if (need2AppendHistory && this.histories.hasHistory()) {
+      const histories = this.histories.fetch();
+
+      let tokenTotalCount = countGPTToken(currentQuestion);
+
+      for (let i = histories.length - 1; i >= 0; i--) {
+        const chat: CliChat = histories[i];
+        if (chat.type === CliChatType.Translation) {
+          continue; // do not append translation content as history
+        }
+        const { question, answer } = chat;
+        const tokenSize = countGPTToken(question + answer);
+        if (tokenTotalCount + tokenSize >= this._status.tokenLimit) {
+          break; // end looping, no appending any more
+        }
+
+        tokenTotalCount += tokenSize;
+        messages.unshift({ role: 'assistant', content: answer });
+        messages.unshift({ role: 'user', content: question });
       }
-      const { question, answer } = chat;
-      const tokenSize = countGPTToken(question + answer);
-      if (tokenTotalSize + tokenSize >= this.tokenLimit) {
-        break; // end looping
-      }
-      tokenTotalSize += tokenSize;
-
-      if (i === 0) {
-        sysHistoryAdded = true;
-      }
-      histories.unshift({ role: 'assistant', content: answer });
-      histories.unshift({ role: 'user', content: question });
     }
 
-    if (!sysHistoryAdded) {
-      // system here
-      // {"role": "system", "content": "You are a helpful assistant."},
-    }
+    // append assitant message
+    messages.unshift({ role: 'system', content: systemPrompt });
 
-    return histories;
-  }
-
-  private makeTranslationQuestion(question: string) {
-    return `Please translate "${question}" to ${ISO6391.getName(this.config.options.optionsLang[0])}`;
-  }
-
-  private genChatHint() {
-    let hint = '';
-
-    hint += `Input the chat text (mode: ${this.pattern}).\n`;
-    hint += 'Input "cx" to switch to text chat mode.\n';
-    hint += 'Input "ct" to switch to target language translate mode.\n';
-    hint += 'Input "ca" to switch to target language chat mode.\n';
-    hint += 'Input "cr" to replay last chat answer in speech.\n';
-    hint += 'Input "cs" to save chat history to disk.\n';
-    hint += 'Chat:';
-
-    return hint;
+    return messages;
   }
 }
