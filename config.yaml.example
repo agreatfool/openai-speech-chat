@@ -47,3 +47,4 @@ langVocal:
   en: Samantha
   ja: Kyoko
 logVerbose: false # default
+needConfirm: false # default, need to confirm input before calling OpenAI API

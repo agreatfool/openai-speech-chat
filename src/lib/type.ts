@@ -39,6 +39,7 @@ export interface ConfigData {
   };
   langVocal: { [lang: string]: string }; // { zh: "Meijia" }
   logVerbose: boolean;
+  needConfirm: boolean;
 }
 
 export interface ConfigOptionAssistant {
@@ -75,12 +76,18 @@ export enum CliCommands {
   log = 'log',
   temperature = 'temperature',
   limit = 'limit',
+  confirm = 'confirm',
   exit = 'exit',
 }
 
 export enum CliCommandLogOptions {
   silent = 'silent',
   verbose = 'verbose',
+}
+
+export enum CliCommandConfirmOptions {
+  need = 'need',
+  noneed = 'noneed',
 }
 
 export interface CliSelectOptions {
@@ -111,6 +118,7 @@ export interface Status {
   targetLang: string; // config.options.optionsLang[x] target language for translating
   rateLimit: StatusRateLimit;
   logVerbose: boolean;
+  needConfirm: boolean;
 }
 
 export interface StatusRateLimit {

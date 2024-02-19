@@ -2,8 +2,8 @@ import { input, select } from '@inquirer/prompts';
 import { CliSelectOptions } from './type';
 
 export class CliIO {
-  public async chat() {
-    return this.input(this.genMsgChat());
+  public async chat(def?: string) {
+    return this.input(this.genMsgChat(), def);
   }
 
   public async select(message: string, options: string[] | CliSelectOptions[]) {
@@ -20,8 +20,20 @@ export class CliIO {
     });
   }
 
-  public async input(message: string) {
-    return input({ message });
+  public async input(message: string, def?: string) {
+    return input({ message, default: def });
+  }
+
+  public async confirmInput(input: string): Promise<boolean> {
+    const res = await this.select(`Confirm your input: ${input}`, [
+      { name: 'Y', value: 'true', description: 'Y - Correct input, send it to API.' },
+      { name: 'N', value: 'false', description: 'N - Wrong input, let me re-edit it again.' },
+    ]);
+    if (res === 'true') {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   private genMsgChat() {
@@ -45,6 +57,7 @@ export class CliIO {
     help += 'Input "reset" to clear all existing historical histories, like starting a new session.\n';
     help += 'Input "save" to save chat history to "~/Downloads".\n';
     help += 'Input "limit" to fetch latest API limit status from OpenAI.\n';
+    help += 'Input "confirm" to list and select the confirm type.\n';
     help += 'Input "help" to print this help message.\n';
     help += 'Input "exit" to exit app.\n';
 

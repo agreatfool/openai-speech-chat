@@ -23,9 +23,9 @@ import {
   ChatOptions,
   ASSISTANT_TRANSLATOR_NAME,
   CliCommandLogOptions,
+  CliCommandConfirmOptions,
 } from './type';
-
-const ISO6391 = require('iso-639-1');
+import { langdetect, langfull } from './language';
 
 export const isNumeric = (str: string) => {
   if (typeof str !== 'string') return false; // we only process strings!
@@ -33,6 +33,13 @@ export const isNumeric = (str: string) => {
     !isNaN(str as unknown as number) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
     !isNaN(parseFloat(str))
   ); // ...and ensure strings of whitespace fail
+};
+
+export const countWords = (str: string): number => {
+  // The \w+ metacharacter matches word characters.
+  // A word character is a character a-z, A-Z, 0-9, including _ (underscore).
+  const matches = str.match(/\w+/g);
+  return matches ? matches.length : 0;
 };
 
 export class Controller {
@@ -76,6 +83,7 @@ export class Controller {
         resetTokens: 'unknown',
       },
       logVerbose: this.config.logVerbose,
+      needConfirm: this.config.needConfirm,
     } as Status;
 
     this.logger('System initialized with status: %O', this._status);
@@ -90,9 +98,11 @@ export class Controller {
     return this.process();
   }
 
-  private async process() {
-    let input = await this.cliIO.chat();
+  private async process(input?: string) {
+    // if original input given, use it as default value, then ask cli again
+    input = (await this.cliIO.chat(input)).trim();
     if (!input) {
+      // no matter from original input or cli input just now
       // wrong input, no content, skip processing
       return this.process();
     }
@@ -138,6 +148,9 @@ export class Controller {
       case CliCommands.limit:
         await this.cmdLimit();
         break;
+      case CliCommands.confirm:
+        await this.cmdConfirm();
+        break;
       case CliCommands.help:
         await this.cmdHelp();
         break;
@@ -153,6 +166,21 @@ export class Controller {
   }
 
   private async chat(input: string) {
+    // check too short input, commonly it's mis-input
+    const lang = langdetect(input);
+    if ((lang === 'en' && countWords(input) === 1) || (lang !== 'en' && input.length === 1)) {
+      // single word input after all the commands,
+      // seems not make sense, need double confirm
+      if (!(await this.cliIO.confirmInput(input))) {
+        return this.process(input);
+      }
+    }
+
+    // double confirm input if the config is on
+    if (this._status.needConfirm && !(await this.cliIO.confirmInput(input))) {
+      return this.process(input);
+    }
+
     const assistant = this._status.assistant;
 
     switch (assistant.name) {
@@ -320,13 +348,39 @@ export class Controller {
     this._status.rateLimit = limit;
   }
 
+  private async cmdConfirm() {
+    const needConfirm = await this.cliIO.select('Select confirm mode:', [
+      {
+        name: CliCommandConfirmOptions.need,
+        value: CliCommandConfirmOptions.need,
+        description: 'Need to double confirm user inputs before sending it to OpenAI API.',
+      },
+      {
+        name: CliCommandConfirmOptions.noneed,
+        value: CliCommandConfirmOptions.noneed,
+        description: 'No need to double confirm user input, send it directly to OpenAI API.',
+      },
+    ]);
+    switch (needConfirm) {
+      case CliCommandConfirmOptions.need:
+        this._status.needConfirm = true;
+        break;
+      case CliCommandConfirmOptions.noneed:
+        this._status.needConfirm = false;
+        break;
+      default:
+        this._status.needConfirm = true;
+        break;
+    }
+  }
+
   private async cmdHelp() {
     console.log(this.cliIO.genMsgHelp());
   }
 
   private replacePromptPH(prompt: string) {
     // replace language placeholder
-    const langFull = ISO6391.getName(this._status.targetLang);
+    const langFull = langfull(this._status.targetLang);
     const pattern = new RegExp(ASSISTANT_TRANSLATOR_LANG_PH, 'g');
     prompt = prompt.replace(pattern, langFull);
 
