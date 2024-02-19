@@ -167,8 +167,8 @@ export class Controller {
 
   private async chat(input: string) {
     // check too short input, commonly it's mis-input
-    const lang = langdetect(input);
-    if ((lang === 'en' && countWords(input) === 1) || (lang !== 'en' && input.length === 1)) {
+    // countWords("short " | "short") === 1 || ("a" | "中").length === 1
+    if (countWords(input) === 1 || input.length === 1) {
       // single word input after all the commands,
       // seems not make sense, need double confirm
       if (!(await this.cliIO.confirmInput(input))) {
