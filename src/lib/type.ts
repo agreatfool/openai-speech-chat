@@ -51,10 +51,13 @@ export interface ConfigOptionAssistant {
 export const ASSISTANT_TRANSLATOR_LANG_PH = '{LANG}';
 export const ASSISTANT_TRANSLATOR_NAME = 'translator';
 
+export const DATETIME_FORMAT = 'YYYY-MM-DD_HH-mm-ss';
+
 export interface CliChatBase {
   question: string;
   answer: string;
   type: CliChatType;
+  datetime: string;
 }
 
 export interface CliChat extends CliChatBase {
