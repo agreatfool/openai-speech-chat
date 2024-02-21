@@ -24,6 +24,7 @@ import {
   ASSISTANT_TRANSLATOR_NAME,
   CliCommandLogOptions,
   CliCommandConfirmOptions,
+  DATETIME_FORMAT,
 } from './type';
 import { langdetect, langfull } from './language';
 
@@ -166,9 +167,9 @@ export class Controller {
   }
 
   private async chat(input: string) {
+    const lang = langdetect(input);
     // check too short input, commonly it's mis-input
-    // countWords("short " | "short") === 1 || ("a" | "中").length === 1
-    if (countWords(input) === 1 || input.length === 1) {
+    if (!['ja', 'zh', 'ko', 'ar'].includes(lang) && countWords(input) === 1) {
       // single word input after all the commands,
       // seems not make sense, need double confirm
       if (!(await this.cliIO.confirmInput(input))) {
@@ -211,7 +212,7 @@ export class Controller {
 
     const { req, res } = await this.openai.chat(messages);
     const answer = res.choices[0]?.message?.content || '';
-    const history: CliChat = { question, answer, req, res, type: chatType };
+    const history: CliChat = { question, answer, datetime: dayjs().format(DATETIME_FORMAT), req, res, type: chatType };
     this.histories.append(history);
 
     return history;
@@ -331,11 +332,12 @@ export class Controller {
   }
 
   private async cmdSave() {
-    const time = dayjs().unix();
+    const datetime = dayjs().format(DATETIME_FORMAT);
+    const timestamp = dayjs().unix();
     const basePath = LibPath.join(LibOs.homedir(), 'Downloads');
 
-    const chatPath = LibPath.join(basePath, `openai-speech-chat.chat-history.${time}.json`);
-    const detailPath = LibPath.join(basePath, `openai-speech-chat.chat-history.detail.${time}.json`);
+    const chatPath = LibPath.join(basePath, `chat-app.history.${datetime}.${timestamp}.json`);
+    const detailPath = LibPath.join(basePath, `chat-app.history.${datetime}.${timestamp}.detail.json`);
 
     this.logger(`Start to save histories to local:\n${chatPath}\n${detailPath}`);
     await LibFs.promises.writeFile(chatPath, JSON.stringify(this.histories.fetchRaw(), undefined, 4));

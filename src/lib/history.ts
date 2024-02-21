@@ -36,7 +36,7 @@ export class ChatHistory {
 
   public fetchRaw(): CliChatBase[] {
     return this.histories.map((history: CliChat) => {
-      return { question: history.question, answer: history.answer, type: history.type };
+      return { question: history.question, answer: history.answer, type: history.type, datetime: history.datetime };
     });
   }
 
