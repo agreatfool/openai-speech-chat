@@ -50,4 +50,8 @@ export class ChatHistory {
   public clear() {
     this.histories = [];
   }
+
+  public recover(data: CliChat[]) {
+    this.histories = data;
+  }
 }

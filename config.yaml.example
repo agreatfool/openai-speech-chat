@@ -1,6 +1,8 @@
 # https://platform.openai.com/account/api-keys
 apiKey:
 
+vaultDir: /Users/XXX/Downloads/OpenAI
+
 temperature: 0.2 # lower means stable response, higher means more random
 baseURL: https://api.openai.com/v1
 useProxy: false
@@ -46,5 +48,5 @@ langVocal:
   zh: Meijia
   en: Samantha
   ja: Kyoko
-logVerbose: false # default
-needConfirm: false # default, need to confirm input before calling OpenAI API
+logVerbose: false # default, will log detailed request and response and other verbose contents or not
+needConfirm: false # default, need to confirm input before calling OpenAI API or not
