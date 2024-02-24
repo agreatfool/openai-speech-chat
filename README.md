@@ -30,10 +30,11 @@ $ npm install && npm run build
 Execute `openai-speech-chat` directly after installing.
 
 ```
-➜  openai-speech-chat git:(rebuild) ✗ openai-speech-chat
+ ✗ openai-speech-chat
   chat-app:config Reading config file: /Users/jonathan/Prog/Codes/NodeJs/openai-speech-chat/config.yaml +0ms
   chat-app:config Config initialized: {
-  chat-app:config   apiKey: '???????',
+  chat-app:config   apiKey: 'sk-k...g',
+  chat-app:config   vaultDir: '/Users/XXX/Downloads/OpenAI',
   chat-app:config   temperature: 0.2,
   chat-app:config   baseURL: 'https://api.openai.com/v1',
   chat-app:config   useProxy: false,
@@ -81,11 +82,12 @@ Execute `openai-speech-chat` directly after installing.
   chat-app:config     optionsLang: [ 'ja', 'en', 'zh' ]
   chat-app:config   },
   chat-app:config   langVocal: { zh: 'Meijia', en: 'Samantha', ja: 'Kyoko' },
-  chat-app:config   logVerbose: false
-  chat-app:config } +7ms
+  chat-app:config   logVerbose: false,
+  chat-app:config   needConfirm: false
+  chat-app:config } +8ms
   chat-app:openai Init OpenAI SDK instance with: {
   chat-app:openai   baseURL: 'https://api.openai.com/v1',
-  chat-app:openai   apiKey: '???????',
+  chat-app:openai   apiKey: 'sk-k...g',
   chat-app:openai   timeout: 10000
   chat-app:openai } +0ms
   chat-app:openai Token limit "9831" calculated from model "gpt-3.5-turbo-0125" +0ms
@@ -108,7 +110,8 @@ Execute `openai-speech-chat` directly after installing.
   chat-app:controller     resetRequests: 'unknown',
   chat-app:controller     resetTokens: 'unknown'
   chat-app:controller   },
-  chat-app:controller   logVerbose: false
+  chat-app:controller   logVerbose: false,
+  chat-app:controller   needConfirm: false
   chat-app:controller } +0ms
 Type anything you want to chat with OpenAI API.
 Some "Reserved Words" are used as "Commands":
@@ -119,10 +122,13 @@ Input "langs" to list and select the target translation language.
 Input "log" to list and select the log type.
 Input "temperature" to edit the AI temperature [0.1 - 1.0, e.g 0.2~0.8].Input "status" to show current cli app status.
 Input "speak" to speak last chat answer.
-Input "history" to show all the chat history till now.
+Input "reprint" to print readable QA history of current session in console.Input "session" to show all the detailed (req + res) chat history of current session.
+Input "historyList" to list all the available histories in vault.
+Input "historyLoad" to list and select the history into current session from vault.
 Input "reset" to clear all existing historical histories, like starting a new session.
-Input "save" to save chat history to "~/Downloads".
+Input "save" to save chat history to vault.
 Input "limit" to fetch latest API limit status from OpenAI.
+Input "confirm" to list and select the confirm type.
 Input "help" to print this help message.
 Input "exit" to exit app.
 

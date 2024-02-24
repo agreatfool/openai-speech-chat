@@ -1,22 +1,28 @@
-import { input, select } from '@inquirer/prompts';
-import { CliSelectOptions } from './type';
+import { Separator, input, select, confirm } from '@inquirer/prompts';
+import { CliSelectOption } from './type';
+
+type Choice = CliSelectOption | Separator;
 
 export class CliIO {
   public async chat(def?: string) {
     return this.input(this.genMsgChat(), def);
   }
 
-  public async select(message: string, options: string[] | CliSelectOptions[]) {
+  public async select(message: string, options: string[] | CliSelectOption[], needTailingSeparator = false) {
+    let choices: Choice[] = options.map((option: string | CliSelectOption) => {
+      if (typeof option === 'string') {
+        // string
+        return { name: option, value: option };
+      } else {
+        return option;
+      }
+    });
+    if (needTailingSeparator) {
+      choices = [...choices, new Separator()];
+    }
     return select({
       message,
-      choices: options.map((option: string | CliSelectOptions) => {
-        if (typeof option === 'string') {
-          // string
-          return { name: option, value: option };
-        } else {
-          return option;
-        }
-      }),
+      choices,
     });
   }
 
@@ -25,15 +31,7 @@ export class CliIO {
   }
 
   public async confirmInput(input: string): Promise<boolean> {
-    const res = await this.select(`Confirm your input: ${input}`, [
-      { name: 'Y', value: 'true', description: 'Y - Correct input, send it to API.' },
-      { name: 'N', value: 'false', description: 'N - Wrong input, let me re-edit it again.' },
-    ]);
-    if (res === 'true') {
-      return true;
-    } else {
-      return false;
-    }
+    return confirm({ message: `Confirm your input: ${input}`, default: true });
   }
 
   private genMsgChat() {
@@ -53,9 +51,12 @@ export class CliIO {
     help += 'Input "temperature" to edit the AI temperature [0.1 - 1.0, e.g 0.2~0.8].';
     help += 'Input "status" to show current cli app status.\n';
     help += 'Input "speak" to speak last chat answer.\n';
-    help += 'Input "history" to show all the chat history till now.\n';
+    help += 'Input "reprint" to print readable QA history of current session in console.';
+    help += 'Input "session" to show all the detailed (req + res) chat history of current session.\n';
+    help += 'Input "historyList" to list all the available histories in vault.\n';
+    help += 'Input "historyLoad" to list and select the history into current session from vault.\n';
     help += 'Input "reset" to clear all existing historical histories, like starting a new session.\n';
-    help += 'Input "save" to save chat history to "~/Downloads".\n';
+    help += 'Input "save" to save chat history to vault.\n';
     help += 'Input "limit" to fetch latest API limit status from OpenAI.\n';
     help += 'Input "confirm" to list and select the confirm type.\n';
     help += 'Input "help" to print this help message.\n';

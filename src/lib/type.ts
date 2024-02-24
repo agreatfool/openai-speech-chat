@@ -20,6 +20,8 @@ export const LOGGER_PREFIX = 'chat-app:';
 export interface ConfigData {
   apiKey: string; // see: https://platform.openai.com/account/api-keys
 
+  vaultDir: string;
+
   temperature: number; // 0.2
   baseURL: string;
   useProxy: boolean;
@@ -49,6 +51,7 @@ export interface ConfigOptionAssistant {
 }
 
 export const ASSISTANT_TRANSLATOR_LANG_PH = '{LANG}';
+export const ASSISTANT_COMMON_NAME = 'common';
 export const ASSISTANT_TRANSLATOR_NAME = 'translator';
 
 export const DATETIME_FORMAT = 'YYYY-MM-DD_HH-mm-ss';
@@ -65,22 +68,30 @@ export interface CliChat extends CliChatBase {
   res: ChatCompletion;
 }
 
+export interface CliChatHistoryFile {
+  summary: string;
+  history: CliChatBase[];
+}
+
 export enum CliCommands {
   help = 'help',
-  cmd = 'cmd',
   assistants = 'assistants',
   langs = 'langs',
   models = 'models',
   speak = 'speak',
-  history = 'history',
-  reset = 'reset',
-  save = 'save',
+  reprint = 'reprint',
+  session = 'session',
+  historyList = 'historyList',
+  historyLoad = 'historyLoad',
   status = 'status',
-  log = 'log',
-  temperature = 'temperature',
   limit = 'limit',
+  save = 'save',
+  reset = 'reset',
+  log = 'log',
   confirm = 'confirm',
+  temperature = 'temperature',
   exit = 'exit',
+  cmd = 'cmd',
 }
 
 export enum CliCommandLogOptions {
@@ -93,15 +104,16 @@ export enum CliCommandConfirmOptions {
   noneed = 'noneed',
 }
 
-export interface CliSelectOptions {
+export interface CliSelectOption {
   name: string;
   value: string;
-  description: string;
+  description?: string;
 }
 
 export enum CliChatType {
   Chat = 'Chat',
   Translation = 'Translation',
+  Summary = 'Summary',
 }
 
 export enum AssistantNames {
@@ -138,4 +150,9 @@ export interface StatusRateLimit {
 export interface LangDetected {
   lang: string; // 'zh-cn' | 'ja' | 'en'
   prob: number; // 0.9999999998813774
+}
+
+export interface HistoryListTableData {
+  timestamp: string;
+  file: CliChatHistoryFile;
 }
