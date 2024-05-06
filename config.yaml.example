@@ -37,7 +37,7 @@ options:
     - name: chat
       prompt: Act like you are real human, chatting with an old friend.
       description: For chatting purpose, AI would act like a human.
-    - name: chatTranslated
+    - name: chatLang
       prompt: Act like you are real human, a native speaker of language "{LANG}", chatting with an old friend. You will always speak in "{LANG}".
       description: For chatting purpose, AI would use specified language chat with you, act like a human.
   optionsLang:
