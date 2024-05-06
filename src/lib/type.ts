@@ -122,7 +122,7 @@ export enum AssistantNames {
   commonTranslated = 'commonTranslated',
   commonLang = 'commonLang',
   chat = 'chat',
-  chatTranslated = 'chatTranslated',
+  chatLang = 'chatLang',
 }
 
 export interface Status {
