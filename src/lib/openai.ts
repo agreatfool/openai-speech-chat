@@ -5,9 +5,10 @@ import { Logger } from './logger';
 import { TiktokenEncoding, get_encoding } from 'tiktoken';
 import { ChatCompletion, ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources';
 import { ChatCompletionStreamParams } from 'openai/lib/ChatCompletionStream';
-import axios, { AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosResponse } from 'axios';
 import { Controller } from './controller';
 import { ConfigData, LoggerType, StatusRateLimit } from './type';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 export const countGPTToken = (text: string) => {
   // see https://platform.openai.com/tokenizer
@@ -66,7 +67,11 @@ export class OpenAIInstance {
     };
 
     // still beta here, maybe need to be fixed in later SDK version
-    const stream = await this.openai.beta.chat.completions.stream(req);
+    let agent = undefined;
+    if (Config.instance.data.useProxy) {
+      agent = new HttpsProxyAgent(Config.instance.data.proxyUrl);
+    }
+    const stream = await this.openai.beta.chat.completions.stream(req, { httpAgent: agent });
 
     stream.on('chunk', (chunk: ChatCompletionChunk) => {
       process.stdout.write(chunk.choices?.[0]?.delta?.content || '');
@@ -95,24 +100,36 @@ export class OpenAIInstance {
       messages: [{ role: 'user', content: 'Say this is a test!' }],
     };
 
-    const res: AxiosResponse = await axios.post(`${this.config.baseURL}/chat/completions`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-        timeout: 10 * 1000, // 10s
-      },
-    });
-
     const headers2bPrinted = {};
-    for (const [key, val] of Object.entries(res.headers)) {
-      if (key === 'date' || key.startsWith('x-')) {
-        headers2bPrinted[key] = val;
-      }
-    }
 
-    this.logger(`Limit API response status: ${res.status}`);
-    this.logger(`Limit API response headers: %O`, headers2bPrinted);
-    this.logger(`Limit API response: %O`, res.data);
+    try {
+      let agent = undefined;
+      if (Config.instance.data.useProxy) {
+        agent = new HttpsProxyAgent(Config.instance.data.proxyUrl);
+      }
+      const res: AxiosResponse = await axios.post(`${this.config.baseURL}/chat/completions`, data, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+          timeout: 10 * 1000, // 10s
+        },
+        proxy: false,
+        httpsAgent: agent,
+      });
+
+      for (const [key, val] of Object.entries(res.headers)) {
+        if (key === 'date' || key.startsWith('x-')) {
+          headers2bPrinted[key] = val;
+        }
+      }
+
+      this.logger(`Limit API response status: ${res.status}`);
+      this.logger(`Limit API response headers: %O`, headers2bPrinted);
+      this.logger(`Limit API response: %O`, res.data);
+    } catch (err) {
+      const error = err as AxiosError;
+      console.log('Error in fetching limit: ', error.response.status, error.response.data);
+    }
 
     return {
       model,
